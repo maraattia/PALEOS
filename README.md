@@ -76,8 +76,8 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
 # Grid parameters (see file headers for exact values)
-n_P, n_T = 1651, 380
-P_min, P_max = 1e5, 1e16       # Pa
+n_P, n_T = 1351, 380
+P_min, P_max = 1e5, 1e14       # Pa
 T_min, T_max = 300.0, 1e5      # K
 
 # Load
