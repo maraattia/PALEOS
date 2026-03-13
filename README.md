@@ -2,84 +2,50 @@
 
 **Planetary Assemblage Layers: Equations Of State**
 
-Python package for calculating thermodynamic properties of planetary materials under extreme pressure–temperature conditions relevant to planetary interiors.
+An open-source Python package for computing thermodynamic properties of planetary materials under extreme pressure–temperature conditions relevant to planetary interiors.
 
-## Current Implementation
+> **Just want the tables?** Precomputed lookup tables for Fe, MgSiO₃, and H₂O are available on Zenodo. No installation required:
+>
+> [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19000316.svg)](https://doi.org/10.5281/zenodo.19000316)
 
-### Iron Equations of State
+## Overview
 
-Complete coverage of the iron phase diagram for planetary core modeling:
+Interior modeling of rocky and water-rich exoplanets requires thermodynamic properties of core, mantle, and volatile-layer materials over many orders of magnitude in pressure and temperature. PALEOS consolidates published equations of state for iron, MgSiO₃, and H₂O into a single validated toolkit with automatic phase selection, consistent reference states, and a uniform interface across all materials and phases.
 
-| Class | Phase | Structure | Reference |
-|-------|-------|-----------|-----------|
-| `Dorogokupets17` | α-Fe, δ-Fe | bcc | Dorogokupets et al. (2017) |
-| `Dorogokupets17` | γ-Fe | fcc | Dorogokupets et al. (2017) |
-| `Miozzi20` | ε-Fe | hcp | Miozzi et al. (2020) |
-| `Hakim18` | ε-Fe | hcp | Hakim et al. (2018) |
-| `HcpIronEos` | ε-Fe | hcp | Blended `Miozzi20` + `Hakim18` |
-| `Luo24` | liquid | — | Luo et al. (2024) |
-| `Ichikawa20` | liquid | — | Ichikawa & Tsuchiya (2020) |
+PALEOS can be used in two ways:
 
-Phase boundaries from Dorogokupets et al. (2017); melting curve from Anzellini et al. (2013).
+1. **Lookup tables** — precomputed grids of thermodynamic quantities, ready to load and interpolate. Best for speed-critical applications such as interior structure integration or MCMC retrievals.
+2. **Python API** — on-the-fly EoS evaluation with automatic phase determination. Best for exploratory work, plotting, or when you need quantities at arbitrary (P, T) points without preinterpolation.
 
-### MgSiO₃ Equations of State
+## Materials and phases
 
-Coverage of silicate mantle phases from low-pressure pyroxenes to post-perovskite and liquid:
+### Iron (Fe)
 
-| Class | Phase | Reference |
-|-------|-------|-----------|
-| `Wolf15` | Bridgmanite (Mg,Fe)SiO₃ | Wolf et al. (2015) |
-| `Sakai16` | Post-perovskite MgSiO₃ | Sakai et al. (2016) |
-| `Sokolova22` | LP-CEn, OrthoEn, HP-CEn | Sokolova et al. (2022) |
-| `Wolf18` | Liquid MgSiO₃ | Wolf & Bower (2018) |
+Five phases covering the complete planetary core phase diagram: α-bcc, δ-bcc, γ-fcc (Dorogokupets et al. 2017), ε-hcp (Miozzi et al. 2020 blended with Hakim et al. 2018), and liquid (Luo et al. 2024). Solid phase boundaries from Dorogokupets et al. (2017); melting curve from Anzellini et al. (2013). Reference state at the bcc–fcc–liquid triple point (5.2 GPa, 1991 K).
 
-Phase boundaries from Sokolova et al. (2022), Ono & Oganov (2005), and Fei et al. (2021); melting curve from Belonoshko et al. (2005) and Fei et al. (2021).
+### Magnesium silicate (MgSiO₃)
 
-### Common Interface
+Six phases covering the planetary mantle: three pyroxene polymorphs—LP-clinoenstatite, orthoenstatite, HP-clinoenstatite (Sokolova et al. 2022)—bridgmanite (Wolf et al. 2015), postperovskite (Sakai et al. 2016), and liquid (Wolf & Bower 2018 with parameters from Luo & Deng 2025). Solid phase boundaries from Sokolova et al. (2022), Ono & Oganov (2005); melting curve from Belonoshko et al. (2005) and Fei et al. (2021). Reference state at the pyroxene triple point (6.5 GPa, 1100 K).
 
-All EoS classes share a consistent interface, returning seven thermodynamic quantities as functions of pressure (Pa) and temperature (K):
+### Water (H₂O)
 
-| Method | Quantity | Units |
-|--------|----------|-------|
-| `density(P, T)` | Density | kg/m³ |
-| `specific_internal_energy(P, T)` | Specific internal energy | J/kg |
-| `specific_entropy(P, T)` | Specific entropy | J/(kg·K) |
-| `isobaric_heat_capacity(P, T)` | Isobaric heat capacity | J/(kg·K) |
-| `isochoric_heat_capacity(P, T)` | Isochoric heat capacity | J/(kg·K) |
-| `thermal_expansion(P, T)` | Thermal expansion coefficient | K⁻¹ |
-| `adiabatic_gradient(P, T)` | Adiabatic gradient $(\partial \ln T/\partial \ln P)_S$ | dimensionless |
+Based on the AQUA equation of state (Haldemann et al. 2020), covering ice polymorphs (Ih through X), liquid, vapor, and supercritical/superionic water. Includes a correction for a sign error in the Mazevet et al. (2019) free energy parametrization affecting entropy and internal energy in the supercritical regime.
 
-### Python API
+## Thermodynamic quantities
 
-```python
-from paleos import iron_eos as fe
-from paleos import mgsio3_eos as mg
+All materials provide the same seven quantities as functions of pressure (Pa) and temperature (K):
 
-# Iron: automatic phase selection
-eos, phase = fe.get_iron_eos_for_PT(P=200e9, T=4000)
-rho = eos.density(200e9, 4000)
+| Quantity                      | Symbol               | Method                           | Units         |
+|-------------------------------|----------------------|----------------------------------|---------------|
+| Density                       | $\rho$               | `density(P, T)`                  | kg/m³         |
+| Specific internal energy      | $u$                  | `specific_internal_energy(P, T)` | J/kg          |
+| Specific entropy              | $s$                  | `specific_entropy(P, T)`         | J/(kg·K)      |
+| Isobaric heat capacity        | $C_P$                | `isobaric_heat_capacity(P, T)`   | J/(kg·K)      |
+| Isochoric heat capacity       | $C_V$                | `isochoric_heat_capacity(P, T)`  | J/(kg·K)      |
+| Thermal expansion coefficient | $\alpha$             | `thermal_expansion(P, T)`        | K⁻¹           |
+| Adiabatic gradient            | $\nabla_\mathrm{ad}$ | `adiabatic_gradient(P, T)`       | dimensionless |
 
-# MgSiO₃: automatic phase selection
-eos, phase = mg.get_mgsio3_eos_for_PT(P=50e9, T=2000)
-rho = eos.density(50e9, 2000)
-
-# Direct class instantiation
-brg = mg.Wolf15(x_Fe=0.1)             # 10% iron-bearing bridgmanite
-ppv = mg.Sakai16()                    # post-perovskite
-en  = mg.Sokolova22(phase='orthoen')  # orthoenstatite
-liq = mg.Wolf18()                     # liquid MgSiO₃
-```
-
-### Lookup Tables
-
-Precomputed tables for fast interpolation, generated at 150 points per decade on a log-uniform grid:
-
-| Table | P range | T range | Grid size | File size |
-|-------|---------|---------|-----------|-----------|
-| `iron_eos_table.dat` | 1 bar – 10 TPa | 300 K – 100,000 K | 1201 × 380 | ~60 MB |
-| `mgsio3_eos_table.dat` | 1 bar – 10 TPa | 300 K – 100,000 K | 1201 × 380 | ~40 MB |
-
-Tables include all seven thermodynamic quantities plus phase identification. Interpolation in (log P, log T) space yields relative errors below 10⁻⁴ for density at the 99th percentile.
+Additionally, `phase(P, T)` returns the stable phase label as a string.
 
 ## Installation
 
@@ -91,68 +57,109 @@ pip install -e .
 
 ## Usage
 
+### Option 1: Lookup tables
+
+Precomputed tables are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19000316) as plain-text, whitespace-delimited files. Each table lives on a log-uniform grid in (P, T) at 150 points per decade, achieving relative density errors below 10⁻⁴ at the 99th percentile under bilinear interpolation in (log₁₀ P, log₁₀ T) space.
+
+| Table                         | Material | P range          | T range     |
+|-------------------------------|----------|------------------|-------------|
+| `paleos_iron_tables_pt.dat`   | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K |
+| `paleos_mgsio3_tables_pt.dat` | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K |
+| `paleos_water_tables_pt.dat`  | H₂O      | 1 μbar – 100 TPa | 100 – 10⁵ K |
+
+Each file contains ten columns: `P`, `T`, `rho`, `u`, `s`, `cp`, `cv`, `alpha`, `nabla_ad`, `phase`.
+
+**Loading and interpolating a table:**
+
 ```python
-from paleos import iron_eos as fe
-from paleos import mgsio3_eos as mg
-
-# Iron: direct EoS evaluation
-eos, phase = fe.get_iron_eos_for_PT(P=300e9, T=5000)
-print(f"Phase: {phase}")
-print(f"Density: {eos.density(300e9, 5000):.1f} kg/m³")
-print(f"Entropy: {eos.specific_entropy(300e9, 5000):.1f} J/(kg·K)")
-
-# MgSiO₃: direct EoS evaluation
-eos, phase = mg.get_mgsio3_eos_for_PT(P=120e9, T=2500)
-print(f"Phase: {phase}")
-print(f"Density: {eos.density(120e9, 2500):.1f} kg/m³")
-
-# Using lookup tables
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
-cols = ['P', 'T', 'rho', 'u', 's', 'cp', 'cv', 'alpha', 'nabla_ad', 'phase']
-data = np.genfromtxt('tables/iron_eos_table.dat', comments='#',
+# Grid parameters (see file headers for exact values)
+n_P, n_T = 1651, 380
+P_min, P_max = 1e5, 1e16       # Pa
+T_min, T_max = 300.0, 1e5      # K
+
+# Load
+cols = ['P','T','rho','u','s','cp','cv','alpha','nabla_ad','phase']
+data = np.genfromtxt('paleos_iron_tables_pt.dat',
                      names=cols, dtype=None, encoding='utf-8')
 
-n_P, n_T = 1201, 380
-log_P = np.log10(data['P'].reshape(n_P, n_T)[:, 0])
-log_T = np.log10(data['T'].reshape(n_P, n_T)[0, :])
-rho = data['rho'].reshape(n_P, n_T)
+# Reconstruct full regular grid
+log_P = np.linspace(np.log10(P_min), np.log10(P_max), n_P)
+log_T = np.linspace(np.log10(T_min), np.log10(T_max), n_T)
 
-interp_rho = RegularGridInterpolator((log_P, log_T), rho)
-rho_interp = interp_rho([[np.log10(300e9), np.log10(5000)]])[0]
+rho = np.full((n_P, n_T), np.nan)
+for row in data:
+    i = np.searchsorted(log_P, np.log10(row['P']))
+    j = np.searchsorted(log_T, np.log10(row['T']))
+    if i < n_P and j < n_T:
+        rho[i, j] = row['rho']
+
+# Interpolate
+interp = RegularGridInterpolator((log_P, log_T), rho)
+rho_query = interp([[np.log10(100e9), np.log10(4000)]])[0]
 ```
 
-## Repository Structure
+> **Note:** Grid points where the EoS failed to converge are omitted from the MgSiO₃ table (primarily in the low-P, high-T liquid regime). Reconstruct the full rectangular grid with NaN fill before building an interpolator, as shown above.
 
+### Option 2: Python API
+
+PALEOS provides a high-level interface for each material that handles phase selection automatically. You instantiate one object per material; all subsequent queries resolve the stable phase internally.
+
+**Fe:**
+
+```python
+from paleos.iron_eos import IronEoS
+
+fe = IronEoS()
+
+rho   = fe.density(200e9, 4000)
+phase = fe.phase(200e9, 4000)                    # 'solid-epsilon'
+cp    = fe.isobaric_heat_capacity(200e9, 4000)
+s     = fe.specific_entropy(200e9, 4000)
 ```
-PALEOS/
-├── setup.py
-├── paleos/
-│   ├── __init__.py
-│   ├── iron_eos.py
-│   ├── iron_eos_benchmark.ipynb
-│   ├── mgsio3_eos.py
-│   └── mgsio3_eos_benchmark.ipynb
-├── tables/
-│   ├── iron_eos_table.ipynb
-│   └── mgsio3_eos_table.ipynb
-└── utils/
+
+**MgSiO₃:**
+
+```python
+from paleos.mgsio3_eos import MgSiO3EoS
+
+mg = MgSiO3EoS()
+
+rho   = mg.density(50e9, 2000)
+phase = mg.phase(50e9, 2000)                      # 'solid-brg'
+s     = mg.specific_entropy(50e9, 2000)
+u     = mg.specific_internal_energy(50e9, 2000)
 ```
 
-## Future Development
+**H₂O:**
 
-- Updated AQUA H₂O tables with corrected entropy
-- Combined iron–silicate–water planetary models
-- Mass–radius relationships and ternary composition lines
+```python
+from paleos.water_eos import WaterEoS
+
+h2o = WaterEoS('/path/to/AQUA_PT_table.dat')
+
+rho   = h2o.density(50e9, 2000)
+phase = h2o.phase(50e9, 2000)                     # 'solid-ice-VII'
+alpha = h2o.thermal_expansion(50e9, 2000)
+```
+
+### Phase labels
+
+All modules use a consistent `solid-*` / `liquid` naming convention:
+
+- **Fe:** `solid-alpha`, `solid-delta`, `solid-gamma`, `solid-epsilon`, `liquid`
+- **MgSiO₃:** `solid-lpcen`, `solid-en`, `solid-hpcen`, `solid-brg`, `solid-ppv`, `liquid`
+- **H₂O:** `solid-ice-Ih`, `solid-ice-II`, `solid-ice-III`, `solid-ice-V`, `solid-ice-VI`, `solid-ice-VII`, `solid-ice-X`, `vapor`, `liquid`, `supercritical`
 
 ## License
 
-This code is licensed under the BSD 3-Clause License—see the [LICENSE](LICENSE) file for details.
+BSD 3-Clause License—see [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-The developer of this software is Mara Attia. We acknowledge the use of the Claude AI assistant (Anthropic, 2024) for code optimization.
+Developed by Mara Attia. We acknowledge the use of the Claude AI assistant (Anthropic) for documentation and code optimization.
 
 ## Contact
 
