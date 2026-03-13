@@ -13,7 +13,7 @@ Journaux et al. (2020), French & Redmer (2015), Wagner & Pruß (2002),
 Brown (2018), Gordon & McBride (1994), and Mazevet et al. (2019).
 
 Entropy / energy correction
-----------------------------
+---------------------------
 The Mazevet et al. (2019) Helmholtz free energy parametrization used in
 AQUA Region 7 contains a sign error in the published Eq. (13).  The
 corrected expression for F_T differs from the erroneous one by
@@ -30,10 +30,12 @@ This correction is applied on top of the tabulated AQUA values so that
 the returned entropy and internal energy are self-consistent with the
 corrected Helmholtz free energy.
 
-EoS Class
----------
+EoS Classes
+-----------
 - Haldemann20: Tabulated AQUA EoS for H₂O (Haldemann et al. 2020)
                with the Mazevet et al. (2019) entropy/energy correction
+- WaterEoS: Wrapper class with pre-loaded table for efficient repeated
+            evaluation with automatic phase identification
 
 Phase Determination
 -------------------
@@ -53,17 +55,6 @@ AQUA phase identifiers (mapped to PALEOS string labels):
      3  → 'vapor'
      4  → 'liquid'
      5  → 'supercritical'
-
-References
-----------
-Haldemann, J., Alibert, Y., Mordasini, C., Benz, W. (2020)
-    "AQUA: a collection of H₂O equations of state for planetary models"
-    A&A 643, A105, DOI: 10.1051/0004-6361/202038367
-
-Mazevet, S., Licari, A., Chabrier, G., Potekhin, A. Y. (2019)
-    "Ab initio based equation of state of dense water for planetary
-    and exoplanetary modeling"
-    A&A 621, A128, DOI: 10.1051/0004-6361/201833963
 
 Author: Mara Attia
 Date: March 2026
@@ -644,7 +635,7 @@ class Haldemann20:
 
         denom = cp + T * alpha**2 * w**2
         if abs(denom) < 1e-30:
-            return np.nan
+            return cp
         return cp**2 / denom
 
     def thermal_expansion(self, P: float, T: float) -> float:
@@ -799,6 +790,7 @@ class Haldemann20:
 # the nearest-neighbour phase from the grid.
 # =============================================================================
 
+
 # Module-level cache for the default table
 _DEFAULT_EOS_CACHE = {}
 
@@ -926,3 +918,99 @@ def get_water_eos_for_PT(P: float, T: float,
         eos = _get_cached_eos(table_path)
     phase = eos.phase(P, T)
     return eos, phase
+
+
+# =============================================================================
+# Wrapper Class
+# =============================================================================
+
+
+class WaterEoS:
+    """
+    Wrapper equation of state for H₂O with pre-loaded AQUA table.
+
+    This class loads the Haldemann20 tabulated EoS once at initialization
+    and exposes the standard PALEOS public interface plus a ``phase``
+    method. It avoids repeated table loading and interpolator construction
+    when the EoS is queried many times (e.g. during interior structure
+    integration).
+
+    Since all H₂O phases are described by a single tabulated EoS (AQUA),
+    the wrapper delegates every call directly to the underlying
+    Haldemann20 instance.  The ``phase`` method returns the AQUA phase
+    label at the queried (P, T) point.
+
+    Parameters
+    ----------
+    table_path : str
+        Path to the AQUA P-T table file.
+
+    Attributes
+    ----------
+    _eos : Haldemann20
+        Underlying tabulated EoS instance.
+
+    Examples
+    --------
+    >>> eos = WaterEoS('path/to/AQUA_PT_table.dat')
+    >>> rho = eos.density(50e9, 2000)
+    >>> phase = eos.phase(50e9, 2000)
+    >>> print(f"{phase}: rho = {rho:.1f} kg/m³")
+    """
+
+    def __init__(self, table_path):
+        """
+        Initialize WaterEoS by loading the AQUA P-T table.
+
+        Parameters
+        ----------
+        table_path : str
+            Path to the AQUA P-T table file.
+        """
+        self._eos = Haldemann20(table_path)
+
+    def phase(self, P, T):
+        """
+        Return the stable H₂O phase at given P and T.
+
+        Parameters
+        ----------
+        P : float
+            Pressure [Pa]
+        T : float
+            Temperature [K]
+
+        Returns
+        -------
+        str
+            Phase label (e.g. 'liquid', 'solid-ice-VII', 'supercritical')
+        """
+        return self._eos.phase(P, T)
+
+    def density(self, P, T):
+        """Calculate density [kg/m³]."""
+        return self._eos.density(P, T)
+
+    def specific_internal_energy(self, P, T):
+        """Calculate specific internal energy [J/kg]."""
+        return self._eos.specific_internal_energy(P, T)
+
+    def specific_entropy(self, P, T):
+        """Calculate specific entropy [J/(kg·K)]."""
+        return self._eos.specific_entropy(P, T)
+
+    def isobaric_heat_capacity(self, P, T):
+        """Calculate specific isobaric heat capacity [J/(kg·K)]."""
+        return self._eos.isobaric_heat_capacity(P, T)
+
+    def isochoric_heat_capacity(self, P, T):
+        """Calculate specific isochoric heat capacity [J/(kg·K)]."""
+        return self._eos.isochoric_heat_capacity(P, T)
+
+    def thermal_expansion(self, P, T):
+        """Calculate volumetric thermal expansion coefficient [K⁻¹]."""
+        return self._eos.thermal_expansion(P, T)
+
+    def adiabatic_gradient(self, P, T):
+        """Calculate dimensionless adiabatic temperature gradient."""
+        return self._eos.adiabatic_gradient(P, T)

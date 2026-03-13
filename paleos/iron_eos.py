@@ -1,5 +1,5 @@
 """
-PALEOS Equations of State for Iron
+PALEOS Equations of State for Fe
 
 This module contains implementations of various equations of state (EoS) for 
 iron relevant to planetary interiors and high-pressure physics.
@@ -14,22 +14,24 @@ EoS Classes
 - Hakim18: hcp-Fe (ε) at high pressure from Hakim et al. (2018)
 - HcpIronEos: Composite hcp-Fe blending Miozzi20 and Hakim18 with smooth transition
 - Luo24: liquid Fe from Luo et al. (2024)
+- IronEoS: Wrapper class with pre-instantiated phases for efficient repeated
+           evaluation with automatic phase selection
 
 Phase Determination
 -------------------
 The module provides functions to determine the stable iron phase at given P-T
 conditions, following the phase diagram in BICEPS (Haldemann et al. 2024):
 
-- get_iron_phase(P, T): Returns the stable phase ('alpha', 'delta', 'gamma', 
-                        'epsilon', or 'liquid')
+- get_iron_phase(P, T): Returns the stable phase ('solid-alpha', 'solid-delta',
+                        'solid-gamma', 'solid-epsilon', or 'liquid')
 - get_iron_eos(phase): Returns EoS instance for a given phase name
 - get_iron_eos_for_PT(P, T): Returns (EoS instance, phase) for given conditions
 
 Phase boundary functions:
-- T_gamma_epsilon(P): γ-ε boundary (Dorogokupets et al. 2017)
-- T_alpha_gamma(P): α-γ boundary (Dorogokupets et al. 2017)
-- T_delta_gamma(P): δ-γ boundary (Dorogokupets et al. 2017)
-- T_alpha_epsilon(P): α-ε direct transition (Dorogokupets et al. 2017)
+- T_gamma_epsilon(P): γ ↔ ε boundary (Dorogokupets et al. 2017)
+- T_alpha_gamma(P): α ↔ γ boundary (Dorogokupets et al. 2017)
+- T_delta_gamma(P): δ ↔ γ boundary (Dorogokupets et al. 2017)
+- T_alpha_epsilon(P): α ↔ ε boundary (Dorogokupets et al. 2017)
 - T_melt_Fe(P): Melting curve (Anzellini et al. 2013)
 
 Author: Mara Attia
@@ -59,13 +61,6 @@ N_AVOGADRO = 6.02214076e23  # mol^-1 - Avogadro number
 #   isochoric_heat_capacity(P, T)  -> J/(kg·K)
 #   thermal_expansion(P, T)        -> K⁻¹
 #   adiabatic_gradient(P, T)       -> dimensionless
-#
-# EoS selection by phase:
-#   - α-Fe (bcc, low T): Dorogokupets17(phase='bcc')
-#   - δ-Fe (bcc, high T): Dorogokupets17(phase='bcc')
-#   - γ-Fe (fcc): Dorogokupets17(phase='fcc')
-#   - ε-Fe (hcp): HcpIronEos() [blends Miozzi20 and Hakim18]
-#   - liquid-Fe: Luo24()
 #
 # =============================================================================
 
@@ -1927,9 +1922,9 @@ class Hakim18:
             If root finding fails to converge
         """
         # Set reasonable bounds for volume search
-        # Allow compression to 0.2*V0 (for extreme super-Earth pressures)
+        # Allow compression to 0.1*V0 (for extreme super-Earth pressures)
         # and expansion to 1.5*V0
-        V_min = 0.2 * self.params['V0']
+        V_min = 0.1 * self.params['V0']
         V_max = 1.5 * self.params['V0']
         
         # Define function whose root we seek
@@ -2871,9 +2866,9 @@ class Luo24:
         V0 = self.params['V0']
         
         # Volume search bounds
-        # Compressed to 30% of V0 (extreme super-Earth pressures)
+        # Compressed to 20% of V0 (extreme super-Earth pressures)
         # Expanded to 150% of V0 (lower pressures)
-        V_min = 0.3 * V0
+        V_min = 0.2 * V0
         V_max = 1.5 * V0
         
         def pressure_residual(V):
@@ -3892,34 +3887,6 @@ class Ichikawa20:
 
 
 # =============================================================================
-# Placeholder for future EoS implementations
-# =============================================================================
-
-# Future classes will follow the same structure:
-# - __init__(self) initialization
-# - Helper functions for EoS components (prefixed with _)
-# - Public methods with consistent naming: property(P, T)
-# - All inputs in Pa and K, all outputs in SI units
-#
-# Example for a future implementation:
-#
-# class AnotherEoS:
-#     def __init__(self):
-#         # Initialize
-#         ...
-#     
-#     def density(self, P: float, T: float) -> float:
-#         # Calculate density for the selected phase
-#         ...
-#     
-#     def specific_internal_energy(self, P: float, T: float) -> float:
-#         ...
-#     
-#     # ... other required methods
-
-
-
-# =============================================================================
 # Phase Diagram Functions
 # =============================================================================
 #
@@ -3936,6 +3903,7 @@ class Ichikawa20:
 #   ε-Fe (hcp): hexagonal close-packed, stable at high P
 #   liquid-Fe: above the melting curve
 # =============================================================================
+
 
 # Melting curve reference points (Anzellini et al. 2013)
 _P0_MELT = 5.2e9      # Pa - Reference pressure
@@ -4094,23 +4062,19 @@ def get_iron_phase(P: float, T: float) -> str:
     Returns
     -------
     str
-        Phase identifier:
-        - 'liquid': liquid iron
-        - 'epsilon': ε-Fe (hcp)
-        - 'gamma': γ-Fe (fcc)
-        - 'alpha': α-Fe (bcc, low T)
-        - 'delta': δ-Fe (bcc, high T)
+        Phase identifier: 'solid-alpha', 'solid-delta', 'solid-gamma',
+        'solid-epsilon', or 'liquid'
     
     Examples
     --------
     >>> get_iron_phase(1e5, 300)      # Ambient conditions
-    'alpha'
+    'solid-alpha'
     >>> get_iron_phase(1e5, 1700)     # High T, low P
-    'delta'
+    'solid-delta'
     >>> get_iron_phase(50e9, 2000)    # Moderate P and T
-    'gamma'
+    'solid-gamma'
     >>> get_iron_phase(200e9, 4000)   # High P
-    'epsilon'
+    'solid-epsilon'
     >>> get_iron_phase(200e9, 6000)   # Above melting
     'liquid'
     """
@@ -4123,7 +4087,7 @@ def get_iron_phase(P: float, T: float) -> str:
     
     # High pressure: only ε-Fe below melting (above γ-ε-liquid triple point)
     if P >= _PT_MELT:
-        return 'epsilon'
+        return 'solid-epsilon'
     
     # Calculate γ-ε boundary
     T_ge = T_gamma_epsilon(P)
@@ -4131,34 +4095,34 @@ def get_iron_phase(P: float, T: float) -> str:
     # Above α-ε transition range (P > 15.8 GPa)
     if P_GPa > 15.8:
         if T < T_ge:
-            return 'epsilon'
+            return 'solid-epsilon'
         else:
-            return 'gamma'
+            return 'solid-gamma'
     
     # Intermediate pressure (7.3 GPa ≤ P ≤ 15.8 GPa)
     if P_GPa >= 7.3:
         T_ae = T_alpha_epsilon(P)
         if T < T_ae:
-            return 'alpha'
+            return 'solid-alpha'
         elif T < T_ge:
-            return 'epsilon'
+            return 'solid-epsilon'
         else:
-            return 'gamma'
+            return 'solid-gamma'
     
     # Low pressure (P < 7.3 GPa): α, γ, δ phases
     T_ag = T_alpha_gamma(P)
     
     if T < T_ag:
-        return 'alpha'
+        return 'solid-alpha'
     
     # Check for δ phase (high T bcc, only at very low P)
     if P_GPa <= 5.2:
         T_dg = T_delta_gamma(P)
         if T >= T_dg:
-            return 'delta'
+            return 'solid-delta'
     
     # Otherwise γ phase
-    return 'gamma'
+    return 'solid-gamma'
 
 
 def get_iron_eos(phase: str):
@@ -4168,15 +4132,16 @@ def get_iron_eos(phase: str):
     This function returns an EoS instance configured for the specified
     iron phase:
     
-    - α-Fe, δ-Fe (bcc): Dorogokupets et al. (2017)
-    - γ-Fe (fcc): Dorogokupets et al. (2017)
+    - α-Fe, δ-Fe (bcc): Dorogokupets et al. (2017), phase='bcc'
+    - γ-Fe (fcc): Dorogokupets et al. (2017), phase='fcc'
     - ε-Fe (hcp): Miozzi et al. (2020)/Hakim et al. (2018)
     - liquid-Fe: Luo et al. (2024)
     
     Parameters
     ----------
     phase : str
-        Phase identifier: 'alpha', 'delta', 'gamma', 'epsilon', or 'liquid'
+        Phase identifier: 'solid-alpha', 'solid-delta', 'solid-gamma',
+        'solid-epsilon', or 'liquid'
         
     Returns
     -------
@@ -4190,7 +4155,7 @@ def get_iron_eos(phase: str):
         
     Examples
     --------
-    >>> eos = get_iron_eos('alpha')
+    >>> eos = get_iron_eos('solid-alpha')
     >>> rho = eos.density(1e9, 500)
     
     Notes
@@ -4200,18 +4165,19 @@ def get_iron_eos(phase: str):
     """
     phase_lower = phase.lower()
     
-    if phase_lower in ['alpha', 'delta']:
+    if phase_lower in ['solid-alpha', 'solid-delta']:
         return Dorogokupets17(phase='bcc')
-    elif phase_lower == 'gamma':
+    elif phase_lower == 'solid-gamma':
         return Dorogokupets17(phase='fcc')
-    elif phase_lower == 'epsilon':
+    elif phase_lower == 'solid-epsilon':
         return HcpIronEos()
     elif phase_lower == 'liquid':
         return Luo24()
     else:
         raise ValueError(
             f"Unknown phase '{phase}'. "
-            f"Valid options: 'alpha', 'delta', 'gamma', 'epsilon', 'liquid'"
+            f"Valid options: 'solid-alpha', 'solid-delta', 'solid-gamma', "
+            f"'solid-epsilon', 'liquid'"
         )
 
 
@@ -4246,13 +4212,128 @@ def get_iron_eos_for_PT(P: float, T: float):
     """
     phase = get_iron_phase(P, T)
     
-    if phase in ['alpha', 'delta']:
+    if phase in ['solid-alpha', 'solid-delta']:
         return Dorogokupets17(phase='bcc'), phase
-    elif phase == 'gamma':
+    elif phase == 'solid-gamma':
         return Dorogokupets17(phase='fcc'), phase
-    elif phase == 'epsilon':
+    elif phase == 'solid-epsilon':
         return HcpIronEos(), phase
     elif phase == 'liquid':
         return Luo24(), phase
     else:
         raise RuntimeError(f"Unexpected phase: {phase}")
+
+
+# =============================================================================
+# Wrapper Class
+# =============================================================================
+
+
+class IronEoS:
+    """
+    Wrapper equation of state for iron with pre-instantiated phase classes.
+
+    This class instantiates every individual iron phase EoS class once at
+    initialization and selects the appropriate one at each (P, T) query
+    based on the iron phase diagram. It avoids the overhead of repeated
+    class construction that ``get_iron_eos_for_PT`` incurs, making it
+    suitable for tight loops such as interior structure ODE integration.
+
+    The seven standard PALEOS thermodynamic properties are exposed as
+    public methods, together with a ``phase`` method that returns the
+    stable phase label at the queried point.
+
+    Attributes
+    ----------
+    _eos_bcc : Dorogokupets17
+        EoS instance for alpha-Fe and delta-Fe (bcc)
+    _eos_fcc : Dorogokupets17
+        EoS instance for gamma-Fe (fcc)
+    _eos_hcp : HcpIronEos
+        Composite EoS instance for epsilon-Fe (hcp)
+    _eos_liquid : Luo24
+        EoS instance for liquid iron
+
+    Examples
+    --------
+    >>> eos = IronEoS()
+    >>> rho = eos.density(200e9, 4000)
+    >>> phase = eos.phase(200e9, 4000)
+    >>> print(f"{phase}: rho = {rho:.1f} kg/m^3")
+    """
+
+    def __init__(self):
+        """
+        Initialize IronEoS by pre-instantiating all phase EoS classes.
+        """
+        self._eos_bcc = Dorogokupets17(phase='bcc')
+        self._eos_fcc = Dorogokupets17(phase='fcc')
+        self._eos_hcp = HcpIronEos()
+        self._eos_liquid = Luo24()
+
+        self._phase_eos_map = {
+            'solid-alpha':   self._eos_bcc,
+            'solid-delta':   self._eos_bcc,
+            'solid-gamma':   self._eos_fcc,
+            'solid-epsilon': self._eos_hcp,
+            'liquid':        self._eos_liquid,
+        }
+
+    def _get_eos(self, P, T):
+        """Return the (eos_instance, phase_label) for given P-T conditions."""
+        phase = get_iron_phase(P, T)
+        return self._phase_eos_map[phase], phase
+
+    def phase(self, P, T):
+        """
+        Return the stable iron phase at given P and T.
+
+        Parameters
+        ----------
+        P : float
+            Pressure [Pa]
+        T : float
+            Temperature [K]
+
+        Returns
+        -------
+        str
+            Phase identifier: 'solid-alpha', 'solid-delta', 'solid-gamma',
+            'solid-epsilon', or 'liquid'
+        """
+        return get_iron_phase(P, T)
+
+    def density(self, P, T):
+        """Calculate density [kg/m³]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.density(P, T)
+
+    def specific_internal_energy(self, P, T):
+        """Calculate specific internal energy [J/kg]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.specific_internal_energy(P, T)
+
+    def specific_entropy(self, P, T):
+        """Calculate specific entropy [J/(kg·K)]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.specific_entropy(P, T)
+
+    def isobaric_heat_capacity(self, P, T):
+        """Calculate specific isobaric heat capacity [J/(kg·K)]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.isobaric_heat_capacity(P, T)
+
+    def isochoric_heat_capacity(self, P, T):
+        """Calculate specific isochoric heat capacity [J/(kg·K)]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.isochoric_heat_capacity(P, T)
+
+    def thermal_expansion(self, P, T):
+        """Calculate volumetric thermal expansion coefficient [K⁻¹]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.thermal_expansion(P, T)
+
+    def adiabatic_gradient(self, P, T):
+        """Calculate dimensionless adiabatic temperature gradient."""
+        eos, _ = self._get_eos(P, T)
+        return eos.adiabatic_gradient(P, T)

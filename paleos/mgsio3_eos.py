@@ -13,14 +13,16 @@ EoS Classes
 - Sakai16: Post-perovskite MgSiO₃ from Sakai et al. (2016)
 - Sokolova22: (high/low-pressure) clino- and orthoenstatite MgSiO₃ from Sokolova et al. (2022)
 - Wolf18: Liquid MgSiO₃ from Wolf & Bower (2018)
+- MgSiO3EoS: Wrapper class with pre-instantiated phases for efficient repeated
+             evaluation with automatic phase selection
 
 Phase Determination
 -------------------
 The module provides functions to determine the stable MgSiO₃ phase at given
 P-T conditions:
 
-- get_mgsio3_phase(P, T): Returns the stable phase ('lpcen', 'en', 'hpcen',
-                           'brg', 'ppv', or 'liquid')
+- get_mgsio3_phase(P, T): Returns the stable phase ('solid-lpcen', 'solid-en',
+                          'solid-hpcen', 'solid-brg', 'solid-ppv', or 'liquid')
 - get_mgsio3_eos(phase): Returns EoS instance for a given phase name
 - get_mgsio3_eos_for_PT(P, T): Returns (EoS instance, phase) for given conditions
 
@@ -3102,6 +3104,7 @@ class Wolf18:
         dTdP_S = self._rtpress.eval_thermal_gradient(V, T)  # K/GPa
         return P_GPa * dTdP_S / T
 
+
 # =============================================================================
 # Phase Diagram Functions
 # =============================================================================
@@ -3124,22 +3127,8 @@ class Wolf18:
 #   brg: bridgmanite (Pbnm), high P
 #   ppv: post-perovskite (Cmcm), very high P
 #   liquid: above the melting curve
-#
-# Phase topology:
-#   The pyroxene triple point (En–LP-CEn–HP-CEn) is at ~6.5 GPa, 1100 K.
-#   Three boundaries emanate from it:
-#     P_lpcen_en(T): parabola, valid on T > 750 K branch (positive slope)
-#     P_lpcen_hpcen(T): line, slight negative slope toward lower T
-#     P_en_hpcen(T): line, positive slope toward higher T
-#
-#   For P < P_triple: only en and lpcen coexist, separated by the
-#     parabola P_lpcen_en (en below, lpcen above). Below T ~ 750 K,
-#     the parabola is at P < 0, so the entire field is lpcen.
-#   For P > P_triple: with increasing T at fixed P:
-#     lpcen → hpcen (at P_lpcen_hpcen) → en (at P_en_hpcen)
-#   Above 12 GPa: brg → ppv (at P_brg_ppv).
-#   The melting curve sits above all solid-solid transitions.
 # =============================================================================
+
 
 # Pyroxene triple point (Sokolova et al. 2022)
 _P_TRIPLE_PYR = 6.5e9    # Pa - En–LP-CEn–HP-CEn triple point
@@ -3286,10 +3275,6 @@ def T_melt_MgSiO3(P: float) -> float:
     return 6000.0 * (P_GPa / 140.0)**0.26
 
 
-# =============================================================================
-# Phase Determination
-# =============================================================================
-
 def get_mgsio3_phase(P: float, T: float) -> str:
     """
     Determine the stable phase of pure MgSiO₃ at given P and T.
@@ -3299,12 +3284,6 @@ def get_mgsio3_phase(P: float, T: float) -> str:
     - Bridgmanite ↔ post-perovskite from Ono & Oganov (2005)
     - Empirical HP-CEn ↔ bridgmanite transition at 12 GPa
     - Melting curve from Belonoshko et al. (2005) / Fei et al. (2021)
-    
-    The pyroxene triple point (En–LP-CEn–HP-CEn) is at approximately
-    6.5 GPa, 1100 K. For P below the triple point, only en and lpcen
-    coexist (separated by the parabola P_lpcen_en; below T ~ 750 K the
-    parabola is at P < 0 so the entire field is lpcen). For P above the
-    triple point, increasing T at fixed P gives lpcen → hpcen → en.
     
     Parameters
     ----------
@@ -3316,26 +3295,21 @@ def get_mgsio3_phase(P: float, T: float) -> str:
     Returns
     -------
     str
-        Phase identifier:
-        - 'liquid': liquid MgSiO₃
-        - 'ppv': post-perovskite (Cmcm)
-        - 'brg': bridgmanite (Pbnm)
-        - 'hpcen': high-pressure clinoenstatite (C2/c)
-        - 'lpcen': low-pressure clinoenstatite (P2₁/c)
-        - 'en': orthoenstatite (Pbca)
+        Phase identifier: 'solid-lpcen', 'solid-en', 'solid-hpcen',
+        'solid-brg', 'solid-ppv', or 'liquid'
     
     Examples
     --------
     >>> get_mgsio3_phase(5e9, 300)       # Low T, moderate P
-    'lpcen'
+    'solid-lpcen'
     >>> get_mgsio3_phase(5e9, 1500)      # Moderate P, high T
-    'en'
+    'solid-en'
     >>> get_mgsio3_phase(8e9, 800)       # Moderate P, low T
-    'hpcen'
+    'solid-hpcen'
     >>> get_mgsio3_phase(50e9, 2000)     # High P
-    'brg'
+    'solid-brg'
     >>> get_mgsio3_phase(140e9, 3000)    # Very high P
-    'ppv'
+    'solid-ppv'
     >>> get_mgsio3_phase(50e9, 5000)     # Above melting
     'liquid'
     """
@@ -3346,11 +3320,11 @@ def get_mgsio3_phase(P: float, T: float) -> str:
     
     # Check post-perovskite
     if P >= P_brg_ppv(T):
-        return 'ppv'
+        return 'solid-ppv'
     
     # Check bridgmanite (above 12 GPa, below ppv boundary)
     if P >= _P_HPCEN_BRG:
-        return 'brg'
+        return 'solid-brg'
     
     # Pyroxene regime (P < 12 GPa)
     # The three boundaries emanate from the triple point (6.5 GPa, 1100 K).
@@ -3359,18 +3333,18 @@ def get_mgsio3_phase(P: float, T: float) -> str:
     if P >= P_en_hpcen(T):
         # Above the en-hpcen line: either hpcen or lpcen
         if P >= P_lpcen_hpcen(T):
-            return 'hpcen'
+            return 'solid-hpcen'
         else:
-            return 'lpcen'
+            return 'solid-lpcen'
     else:
         # Below the en-hpcen line: either en or lpcen
         # The parabola P_lpcen_en separates them (valid for T > ~750 K).
         # Below ~750 K the parabola is at P < 0, so the entire field
         # is lpcen (the low-T polymorph).
         if T > 750.0 and P < P_lpcen_en(T):
-            return 'en'
+            return 'solid-en'
         else:
-            return 'lpcen'
+            return 'solid-lpcen'
 
 
 def get_mgsio3_eos(phase: str):
@@ -3390,8 +3364,8 @@ def get_mgsio3_eos(phase: str):
     Parameters
     ----------
     phase : str
-        Phase identifier: 'en', 'lpcen', 'hpcen', 'brg', 'ppv',
-        or 'liquid'
+        Phase identifier: 'solid-lpcen', 'solid-en', 'solid-hpcen',
+        'solid-brg', 'solid-ppv', or 'liquid'
         
     Returns
     -------
@@ -3405,7 +3379,7 @@ def get_mgsio3_eos(phase: str):
         
     Examples
     --------
-    >>> eos = get_mgsio3_eos('brg')
+    >>> eos = get_mgsio3_eos('solid-brg')
     >>> rho = eos.density(50e9, 2000)
     
     Notes
@@ -3415,22 +3389,23 @@ def get_mgsio3_eos(phase: str):
     """
     phase_lower = phase.lower()
     
-    if phase_lower == 'en':
+    if phase_lower == 'solid-en':
         return Sokolova22(phase='orthoen')
-    elif phase_lower == 'lpcen':
+    elif phase_lower == 'solid-lpcen':
         return Sokolova22(phase='lp-cen')
-    elif phase_lower == 'hpcen':
+    elif phase_lower == 'solid-hpcen':
         return Sokolova22(phase='hp-cen')
-    elif phase_lower == 'brg':
+    elif phase_lower == 'solid-brg':
         return Wolf15(x_Fe=0.0)
-    elif phase_lower == 'ppv':
+    elif phase_lower == 'solid-ppv':
         return Sakai16()
     elif phase_lower == 'liquid':
         return Wolf18()
     else:
         raise ValueError(
             f"Unknown phase '{phase}'. "
-            f"Valid options: 'en', 'lpcen', 'hpcen', 'brg', 'ppv', 'liquid'"
+            f"Valid options: 'solid-en', 'solid-lpcen', 'solid-hpcen', "
+            f"'solid-brg', 'solid-ppv', 'liquid'"
         )
 
 
@@ -3464,3 +3439,126 @@ def get_mgsio3_eos_for_PT(P: float, T: float):
     phase = get_mgsio3_phase(P, T)
     eos = get_mgsio3_eos(phase)
     return eos, phase
+
+
+# =============================================================================
+# Wrapper Class
+# =============================================================================
+
+
+class MgSiO3EoS:
+    """
+    Wrapper equation of state for MgSiO3 with pre-instantiated phase classes.
+
+    This class instantiates every individual MgSiO3 phase EoS class once at
+    initialization and selects the appropriate one at each (P, T) query
+    based on the MgSiO3 phase diagram. It avoids the overhead of repeated
+    class construction (especially for Wolf18 which requires RTpress
+    initialization with sympy compilation) when the EoS is queried many
+    times.
+
+    The seven standard PALEOS thermodynamic properties are exposed as
+    public methods, together with a ``phase`` method that returns the
+    stable phase label at the queried point.
+
+    Attributes
+    ----------
+    _eos_lpcen : Sokolova22
+        EoS instance for low-pressure clinoenstatite
+    _eos_en : Sokolova22
+        EoS instance for orthoenstatite
+    _eos_hpcen : Sokolova22
+        EoS instance for high-pressure clinoenstatite
+    _eos_brg : Wolf15
+        EoS instance for bridgmanite (pure MgSiO3)
+    _eos_ppv : Sakai16
+        EoS instance for post-perovskite
+    _eos_liquid : Wolf18
+        EoS instance for liquid MgSiO3
+
+    Examples
+    --------
+    >>> eos = MgSiO3EoS()
+    >>> rho = eos.density(50e9, 2000)
+    >>> phase = eos.phase(50e9, 2000)
+    >>> print(f"{phase}: rho = {rho:.1f} kg/m^3")
+    """
+
+    def __init__(self):
+        """
+        Initialize MgSiO3EoS by pre-instantiating all phase EoS classes.
+        """
+        self._eos_lpcen = Sokolova22(phase='lp-cen')
+        self._eos_en = Sokolova22(phase='orthoen')
+        self._eos_hpcen = Sokolova22(phase='hp-cen')
+        self._eos_brg = Wolf15(x_Fe=0.0)
+        self._eos_ppv = Sakai16()
+        self._eos_liquid = Wolf18()
+
+        self._phase_eos_map = {
+            'solid-lpcen': self._eos_lpcen,
+            'solid-en':    self._eos_en,
+            'solid-hpcen': self._eos_hpcen,
+            'solid-brg':   self._eos_brg,
+            'solid-ppv':   self._eos_ppv,
+            'liquid':      self._eos_liquid,
+        }
+
+    def _get_eos(self, P, T):
+        """Return (eos_instance, phase_label) for given P-T conditions."""
+        phase = get_mgsio3_phase(P, T)
+        return self._phase_eos_map[phase], phase
+
+    def phase(self, P, T):
+        """
+        Return the stable MgSiO3 phase at given P and T.
+
+        Parameters
+        ----------
+        P : float
+            Pressure [Pa]
+        T : float
+            Temperature [K]
+
+        Returns
+        -------
+        str
+            Phase identifier: 'solid-lpcen', 'solid-en', 'solid-hpcen',
+            'solid-brg', 'solid-ppv', or 'liquid'
+        """
+        return get_mgsio3_phase(P, T)
+
+    def density(self, P, T):
+        """Calculate density [kg/m³]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.density(P, T)
+
+    def specific_internal_energy(self, P, T):
+        """Calculate specific internal energy [J/kg]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.specific_internal_energy(P, T)
+
+    def specific_entropy(self, P, T):
+        """Calculate specific entropy [J/(kg·K)]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.specific_entropy(P, T)
+
+    def isobaric_heat_capacity(self, P, T):
+        """Calculate specific isobaric heat capacity [J/(kg·K)]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.isobaric_heat_capacity(P, T)
+
+    def isochoric_heat_capacity(self, P, T):
+        """Calculate specific isochoric heat capacity [J/(kg·K)]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.isochoric_heat_capacity(P, T)
+
+    def thermal_expansion(self, P, T):
+        """Calculate volumetric thermal expansion coefficient [K⁻¹]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.thermal_expansion(P, T)
+
+    def adiabatic_gradient(self, P, T):
+        """Calculate dimensionless adiabatic temperature gradient."""
+        eos, _ = self._get_eos(P, T)
+        return eos.adiabatic_gradient(P, T)
