@@ -182,7 +182,7 @@ class Haldemann20:
     (301 points, 100 per decade, log-spaced).
 
     Extrapolation beyond the table boundaries is not permitted; the
-    interpolators will raise ValueError for out-of-range queries.
+    interpolators will raise RuntimeError for out-of-range queries.
     """
 
     def __init__(self, table_path: str):
@@ -322,38 +322,79 @@ class Haldemann20:
         )
 
     # =========================================================================
+    # Interpolation helper with bounds-error conversion
+    # =========================================================================
+
+    def _eval_interp(self, interp, P: float, T: float) -> float:
+        """
+        Evaluate a RegularGridInterpolator, converting bounds errors.
+
+        All AQUA interpolators use ``bounds_error=True``, which raises
+        ``ValueError`` for out-of-range queries.  This helper catches
+        that exception and re-raises it as ``RuntimeError``, consistent
+        with the convention used by ``_find_volume`` in the iron and
+        MgSiO₃ EoS modules.
+
+        Parameters
+        ----------
+        interp : RegularGridInterpolator
+            Interpolator to evaluate.
+        P : float
+            Pressure [Pa].
+        T : float
+            Temperature [K].
+
+        Returns
+        -------
+        float
+            Interpolated value.
+
+        Raises
+        ------
+        RuntimeError
+            If (P, T) falls outside the AQUA table bounds.
+        """
+        pt = np.array([[np.log10(P), np.log10(T)]])
+        try:
+            return float(interp(pt)[0])
+        except ValueError as e:
+            raise RuntimeError(
+                f"H₂O EoS evaluation out of bounds at "
+                f"P = {P:.3e} Pa, T = {T:.3e} K. "
+                f"AQUA table covers "
+                f"{10**self.log10_P_grid[0]:.1e}–"
+                f"{10**self.log10_P_grid[-1]:.1e} Pa and "
+                f"{10**self.log10_T_grid[0]:.1f}–"
+                f"{10**self.log10_T_grid[-1]:.1f} K."
+            ) from e
+
+    # =========================================================================
     # Raw table interpolation (before corrections)
     # =========================================================================
 
     def _raw_density(self, P: float, T: float) -> float:
         """Interpolate density from the AQUA table [kg/m³]."""
-        pt = np.array([[np.log10(P), np.log10(T)]])
-        return 10.0**float(self._interp_log_rho(pt)[0])
+        return 10.0**self._eval_interp(self._interp_log_rho, P, T)
 
     def _raw_adiabatic_gradient(self, P: float, T: float) -> float:
         """Interpolate adiabatic gradient from the AQUA table [dimensionless]."""
-        pt = np.array([[np.log10(P), np.log10(T)]])
-        return float(self._interp_nad(pt)[0])
+        return self._eval_interp(self._interp_nad, P, T)
 
     def _raw_entropy(self, P: float, T: float) -> float:
         """Interpolate specific entropy from the AQUA table [J/(kg·K)]."""
-        pt = np.array([[np.log10(P), np.log10(T)]])
-        return float(self._interp_s(pt)[0])
+        return self._eval_interp(self._interp_s, P, T)
 
     def _raw_internal_energy(self, P: float, T: float) -> float:
         """Interpolate specific internal energy from the AQUA table [J/kg]."""
-        pt = np.array([[np.log10(P), np.log10(T)]])
-        return float(self._interp_u(pt)[0])
+        return self._eval_interp(self._interp_u, P, T)
 
     def _raw_speed_of_sound(self, P: float, T: float) -> float:
         """Interpolate speed of sound from the AQUA table [m/s]."""
-        pt = np.array([[np.log10(P), np.log10(T)]])
-        return 10.0**float(self._interp_log_w(pt)[0])
+        return 10.0**self._eval_interp(self._interp_log_w, P, T)
 
     def _raw_phase_id(self, P: float, T: float) -> int:
         """Interpolate (nearest-neighbour) the AQUA phase ID."""
-        pt = np.array([[np.log10(P), np.log10(T)]])
-        return int(round(float(self._interp_phase(pt)[0])))
+        return int(round(self._eval_interp(self._interp_phase, P, T)))
 
     # =========================================================================
     # Mazevet et al. (2019) F_T correction
