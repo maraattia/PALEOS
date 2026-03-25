@@ -172,3 +172,4 @@ cython_debug/
 
 # Datasets (they live on Zenodo rather than GitHub)
 .dat
+.zip

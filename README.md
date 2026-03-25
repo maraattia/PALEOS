@@ -4,9 +4,12 @@
 
 An open-source Python package for computing thermodynamic properties of planetary materials under extreme pressure–temperature conditions relevant to planetary interiors.
 
-> **Just want the tables?** Precomputed lookup tables for Fe, MgSiO₃, and H₂O are available on Zenodo. No installation required:
+> **Just want the data?** Precomputed tables are available on Zenodo — no installation required:
 >
-> [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19000316.svg)](https://doi.org/10.5281/zenodo.19000316)
+> | | |
+> |---|---|
+> | **EoS lookup tables** (Fe, MgSiO₃, H₂O) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19000316.svg)](https://doi.org/10.5281/zenodo.19000316) |
+> | **Mass-radius tables** (rocky & water-rich) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19221215.svg)](https://doi.org/10.5281/zenodo.19221215) |
 
 ## Overview
 
@@ -143,6 +146,26 @@ h2o = WaterEoS('/path/to/AQUA_PT_table.dat')
 rho   = h2o.density(50e9, 2000)
 phase = h2o.phase(50e9, 2000)                     # 'solid-ice-VII'
 alpha = h2o.thermal_expansion(50e9, 2000)
+```
+
+### Mass-radius tables
+
+Precomputed mass-radius relations for rocky and water-rich planets are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19221215). The archive contains one `.dat` file per surface temperature, organized in `rocky/` and `water/` subdirectories.
+
+| Family | Composition | CMF/WMF values | T_surf range | Files |
+|--------|-------------|----------------|--------------|-------|
+| Rocky | Fe core + MgSiO₃ mantle | 22 CMF (0.00–1.00, incl. Earth-like 0.325) | 300–4000 K (9 values) | 9 |
+| Water-rich | Earth-like core + H₂O envelope | 20 WMF (0.05–1.00) | 300–1000 K (8 values) | 8 |
+
+All models use 1 bar surface pressure, adiabatic temperature profiles, and 50 log-uniform masses from 0.1 to 100 M⊕. Each file contains three columns: `CMF` (or `WMF`), `M_earth`, `R_earth`.
+
+**Loading a table:**
+
+```python
+import pandas as pd
+
+df = pd.read_csv('paleos_mr_rocky_T300K.dat', comment='#', skip_blank_lines=True)
+# columns: CMF, M_earth, R_earth
 ```
 
 ### Phase labels
