@@ -4,12 +4,11 @@
 
 An open-source Python package for computing thermodynamic properties of planetary materials under extreme pressure–temperature conditions relevant to planetary interiors.
 
-> **Just want the data?** Precomputed tables are available on Zenodo — no installation required:
+> **Just want the data?** Precomputed tables are available on Zenodo—no installation required:
 >
-> | | |
-> |---|---|
 > | **EoS lookup tables** (Fe, MgSiO₃, H₂O) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19000316.svg)](https://doi.org/10.5281/zenodo.19000316) |
-> | **Mass-radius tables** (rocky & water-rich) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19221215.svg)](https://doi.org/10.5281/zenodo.19221215) |
+> |---|---|
+> | **Mass–radius tables** (rocky & water-rich) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19221215.svg)](https://doi.org/10.5281/zenodo.19221215) |
 
 ## Overview
 
@@ -148,9 +147,9 @@ phase = h2o.phase(50e9, 2000)                     # 'solid-ice-VII'
 alpha = h2o.thermal_expansion(50e9, 2000)
 ```
 
-### Mass-radius tables
+### Mass–radius tables
 
-Precomputed mass-radius relations for rocky and water-rich planets are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19221215). The archive contains one `.dat` file per surface temperature, organized in `rocky/` and `water/` subdirectories.
+Precomputed mass–radius relations for rocky and water-rich planets are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19221215). The archive contains one `.dat` file per surface temperature, organized in `rocky/` and `water/` subdirectories.
 
 | Family | Composition | CMF/WMF values | T_surf range | Files |
 |--------|-------------|----------------|--------------|-------|
