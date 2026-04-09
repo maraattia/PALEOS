@@ -15,20 +15,32 @@ Brown (2018), Gordon & McBride (1994), and Mazevet et al. (2019).
 Entropy / energy correction
 ---------------------------
 The Mazevet et al. (2019) Helmholtz free energy parametrization used in
-AQUA Region 7 contains a sign error in the published Eq. (13).  The
-corrected expression for F_T differs from the erroneous one by
+AQUA Region 7 requires two corrections, both independent of density and
+therefore affecting only the entropy and internal energy (not the
+pressure or density).
 
-    F_{T,shift} = 2 N_at [b₁ τ ln(1 + τ⁻²) + b₂ τ arctan τ]
+1. **Sign error in Eq. (13).**  The corrected expression for F_T differs
+   from the erroneous one by
 
-where τ = T / T_crit (T_crit = 647 K), b₁ = 3 × 10^{-20} J, and
-b₂ = 1.35 × 10^{-20} J. Since F_{T,shift} is independent of density, it
-does not affect the pressure (and therefore density) but shifts the
-specific entropy and specific internal energy via the standard
-thermodynamic relations S = −∂F/∂T|_V and U = F + TS.
+       F_{sign}(T) = 2 N_at [b₁ τ ln(1 + τ⁻²) + b₂ τ arctan τ]
 
-This correction is applied on top of the tabulated AQUA values so that
-the returned entropy and internal energy are self-consistent with the
-corrected Helmholtz free energy.
+   where τ = T / T_crit (T_crit = 647 K), b₁ = 3 × 10^{-20} J, and
+   b₂ = 1.35 × 10^{-20} J.
+
+2. **Reference entropy S₀ revision.**  Mazevet et al. (2019) revised the
+   reference entropy from S₀,old = 4.9 kB n_at to S₀,new = 9.8 kB n_at.
+   Since the free energy contains a −S₀ T term, the AQUA table (built
+   with S₀,old) needs an additive correction
+
+       F_{S₀}(T) = (S₀,old − S₀,new) T = −4.9 kB n_at T
+
+   This linear-in-T term contributes a constant entropy shift
+   S_{S₀} = +4.9 kB n_at but cancels exactly in the internal energy
+   (U = F + TS).
+
+The total free energy correction is F_shift = F_{sign} + F_{S₀} and is
+propagated analytically to entropy (S_shift = −∂F_shift/∂T) and internal
+energy (U_shift = F_shift + T S_shift).
 
 EoS Classes
 -----------
@@ -76,6 +88,8 @@ _N_ATOMS_PER_MOL = 3  # atoms per molecule (2H + 1O)
 _T_CRIT = 647.0  # K — critical temperature used in the parametrization
 _b1 = 3.0e-20  # J — (3 × 10⁻¹³ erg converted to SI)
 _b2 = 1.35e-20  # J — (1.35 × 10⁻¹³ erg converted to SI)
+_S0_OLD_PER_ATOM = 4.9 * K_BOLTZMANN   # J/(K·atom) — original S₀
+_S0_NEW_PER_ATOM = 9.8 * K_BOLTZMANN   # J/(K·atom) — revised S₀
 
 # Number of atoms per kg of H₂O
 _N_AT_PER_KG = _N_ATOMS_PER_MOL * N_AVOGADRO / _M_H2O  # atoms/kg
@@ -129,21 +143,29 @@ class Haldemann20:
     PALEOS thermodynamic interface via bilinear interpolation in
     log₁₀(P)–log₁₀(T) space.
 
-    A correction to the Mazevet et al. (2019) free energy F_T is applied
-    to the specific entropy and specific internal energy.  The correction
-    arises from a sign error in the published Eq. (13) of Mazevet et al.
-    (2019): the first two terms inside the brackets carry a minus sign in
-    the paper but should be positive.  The difference,
+    Two corrections to the Mazevet et al. (2019) free energy are applied
+    to the specific entropy and specific internal energy.  Both are
+    independent of density, so the pressure and density are unaffected.
 
-        F_{T,shift}(T) = 2 N_at [b₁ τ ln(1+τ⁻²) + b₂ τ arctan(τ)]
+    1. **Sign error in Eq. (13)**: the first two terms inside the brackets
+       carry a minus sign in the paper but should be positive, giving
 
-    where N_at = 3 N_A / M_{H₂O} is the number of atoms per kg, τ = T/647 K,
-    b₁ = 3 × 10⁻²⁰ J, b₂ = 1.35 × 10⁻²⁰ J, is propagated analytically
-    to entropy (S_shift = −∂F_{T,shift}/∂T) and internal energy
-    (U_shift = F_{T,shift} + T S_shift).
+           F_{sign}(T) = 2 N_at [b₁ τ ln(1+τ⁻²) + b₂ τ arctan(τ)]
 
-    Since F_{T,shift} is independent of density, the pressure and density
-    are unaffected by this correction.
+       where N_at = 3 N_A / M_{H₂O}, τ = T/647 K, b₁ = 3 × 10⁻²⁰ J,
+       b₂ = 1.35 × 10⁻²⁰ J.
+
+    2. **Reference entropy revision**: S₀ was revised from 4.9 kB n_at to
+       9.8 kB n_at, requiring an additive correction
+
+           F_{S₀}(T) = (S₀,old − S₀,new) T = −4.9 kB N_at T
+
+       This contributes a constant entropy shift but cancels exactly in
+       the internal energy.
+
+    The total F_shift = F_{sign} + F_{S₀} is propagated analytically to
+    entropy (S_shift = −∂F_shift/∂T) and internal energy
+    (U_shift = F_shift + T S_shift).
 
     Heat capacities and thermal expansion are derived from the tabulated
     quantities through standard thermodynamic relations:
@@ -403,11 +425,13 @@ class Haldemann20:
     @staticmethod
     def _f_shift(T: float) -> float:
         """
-        Specific Helmholtz free energy correction F_{T,shift} / mass.
+        Specific Helmholtz free energy correction F_shift / mass.
 
-        F_{T,shift} = 2 N_at [b₁ τ ln(1 + τ⁻²) + b₂ τ arctan(τ)]
+        F_shift = 2 N_at [b₁ τ ln(1 + τ⁻²) + b₂ τ arctan(τ)]
+                  + (S₀,old − S₀,new) N_at T
 
-        where N_at = 3 N_A / M_{H₂O}, τ = T / 647 K.
+        where N_at = 3 N_A / M_{H₂O}, τ = T / 647 K, and
+        S₀,old = 4.9 kB, S₀,new = 9.8 kB (per atom).
 
         Parameters
         ----------
@@ -422,17 +446,21 @@ class Haldemann20:
         tau = T / _T_CRIT
         term1 = _b1 * tau * np.log(1.0 + tau**(-2))
         term2 = _b2 * tau * np.arctan(tau)
-        return 2.0 * _N_AT_PER_KG * (term1 + term2)
+        f_sign = 2.0 * _N_AT_PER_KG * (term1 + term2)
+        f_s0 = (_S0_OLD_PER_ATOM - _S0_NEW_PER_ATOM) * _N_AT_PER_KG * T
+        return f_sign + f_s0
 
     @staticmethod
     def _df_shift_dT(T: float) -> float:
         """
         Temperature derivative of the specific free energy correction.
 
-        ∂F_{T,shift}/∂T = 2 N_at [
+        ∂F_shift/∂T = 2 N_at [
             b₁ ( (1/T_c) ln(1 + T_c²/T²)  −  2 T_c / (T² + T_c²) )
           + b₂ ( (1/T_c) arctan(T/T_c)     +  T / (T² + T_c²) )
-        ]
+        ] + (S₀,old − S₀,new) N_at
+
+        where S₀,old = 4.9 kB, S₀,new = 9.8 kB (per atom).
 
         Parameters
         ----------
@@ -442,7 +470,7 @@ class Haldemann20:
         Returns
         -------
         float
-            ∂F_{T,shift}/∂T [J/(kg·K)]
+            ∂F_shift/∂T [J/(kg·K)]
         """
         tau = T / _T_CRIT
         Tc = _T_CRIT
@@ -452,7 +480,9 @@ class Haldemann20:
                          - 2.0 * Tc / denom)
         d_term2 = _b2 * ((1.0 / Tc) * np.arctan(T / Tc)
                          + T / denom)
-        return 2.0 * _N_AT_PER_KG * (d_term1 + d_term2)
+        df_sign = 2.0 * _N_AT_PER_KG * (d_term1 + d_term2)
+        df_s0 = (_S0_OLD_PER_ATOM - _S0_NEW_PER_ATOM) * _N_AT_PER_KG
+        return df_sign + df_s0
 
     @staticmethod
     def _entropy_shift(T: float) -> float:
