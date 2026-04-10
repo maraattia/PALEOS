@@ -17,7 +17,11 @@ Entropy / energy correction
 The Mazevet et al. (2019) Helmholtz free energy parametrization used in
 AQUA Region 7 requires two corrections, both independent of density and
 therefore affecting only the entropy and internal energy (not the
-pressure or density).
+pressure or density).  These corrections are gated by a Region-7 weight
+``w_7(P, T)`` (see ``Haldemann20._region7_weight``) so that they are
+applied only where AQUA actually uses M19 — fully inside Region 7 and
+with a smooth ramp across the 3↔7, 5↔7, and 6↔7 transition bands
+defined in Haldemann et al. (2020), Eqs. (26)–(27).
 
 1. **Sign error in Eq. (13).**  The corrected expression for F_T differs
    from the erroneous one by
@@ -144,7 +148,9 @@ class Haldemann20:
     log₁₀(P)–log₁₀(T) space.
 
     Two corrections to the Mazevet et al. (2019) free energy are applied
-    to the specific entropy and specific internal energy.  Both are
+    to the specific entropy and specific internal energy, gated by a
+    Region-7 weight ``w_7(P, T)`` so that the shift is non-zero only where
+    AQUA actually uses the M19 EoS (see ``_region7_weight``).  Both are
     independent of density, so the pressure and density are unaffected.
 
     1. **Sign error in Eq. (13)**: the first two terms inside the brackets
@@ -423,6 +429,132 @@ class Haldemann20:
     # =========================================================================
 
     @staticmethod
+    def _region7_ramps(P, T):
+        """
+        Individual Region-7 transition ramps ``(w3, w5, w6)``.
+
+        Each ramp is ``∈ [0, 1]`` and corresponds to one of the three
+        transitions that AQUA uses to blend the Mazevet+19 EoS with its
+        neighbours (Haldemann et al. 2020, Eqs. 26–27):
+
+        * ``w3`` — 3 ↔ 7 (ice-X / M19), T ≤ 2250 K, const. P bounds
+          at 300 GPa and 700 GPa.
+        * ``w5`` — 5 ↔ 7 (Brown 2018 / M19), Eq. (26),
+          T ∈ [1800, 5500] K, isothermal above 4500 K.
+        * ``w6`` — 6 ↔ 7 (CEA / M19), Eq. (27), T ∈ (5500, 1e5] K.
+
+        Ramps are linear in ``log10(P)`` across the blend band.  All
+        three ramps are zeroed above the M19 upper limit ``T = 1e5 K``
+        (the upper P bound of ~400 TPa is enforced implicitly by the
+        AQUA table interpolation itself).
+
+        The 3↔7 ramp remains active for ``T < 300 K``: per Haldemann+20
+        §2.3.3, AQUA extends M19 below its native 300 K lower bound by
+        *isothermally clamping* it to ``T = 300 K``, so the tabulated
+        values at high pressure still come from M19 and still carry the
+        sign-error / S₀ contamination.  Callers that multiply this ramp
+        by the Mazevet shift must therefore evaluate the shift at
+        ``max(T, 300 K)`` — see ``specific_entropy`` and
+        ``specific_internal_energy`` for the call-site clamp.  The 5↔7
+        and 6↔7 ramps carry their own lower T guards (1800 K and
+        5500 K), so they stay zero for ``T < 300 K``.
+
+        Splitting the ramps lets callers apply a phase-aware veto only
+        where it is needed: the 5↔7 and 6↔7 ramps can be silenced on
+        ice-VII/ice-X points that fall inside their overlap strip, while
+        the 3↔7 ramp stays active there because ice-X is the *intended*
+        low-P neighbour of that transition.
+
+        Parameters
+        ----------
+        P : float or array-like
+            Pressure [Pa]
+        T : float or array-like
+            Temperature [K]
+
+        Returns
+        -------
+        tuple of float or ndarray
+            ``(w3, w5, w6)``.  Scalars if both inputs are scalar.
+        """
+        P_arr = np.asarray(P, dtype=float)
+        T_arr = np.asarray(T, dtype=float)
+        log_P = np.log10(np.maximum(P_arr, 1e-300))
+
+        # M19's native validity window is 300 K – 1e5 K, but AQUA extends
+        # it to T < 300 K via an isothermal clamp at T = 300 K (see
+        # Haldemann+20 §2.3.3).  The low-T floor is therefore dropped
+        # here; the shift functions are called with a clamped temperature
+        # at the call site instead.
+        in_T = (T_arr <= 1.0e5)
+        in_P = P_arr > 0.0
+        in_domain = in_T & in_P
+
+        # 3 <-> 7 : constant P bounds, applicable for all T ≤ 2250 K
+        log_lo3 = np.log10(3.0e11)
+        log_hi3 = np.log10(7.0e11)
+        w3 = np.clip((log_P - log_lo3) / (log_hi3 - log_lo3), 0.0, 1.0)
+        w3 = np.where((T_arr <= 2250.0) & in_domain, w3, 0.0)
+
+        # 5 <-> 7 : Eq. (26), applicable for T ∈ [1800, 5500] K
+        # Isothermal extension above 4500 K per the paper.
+        T_eff = np.minimum(T_arr, 4500.0)
+        log_P57 = (np.log10(42e9)
+                   - np.log10(6.0) * (T_eff / 1000.0 - 2.0) / 18.0)
+        log_lo5 = log_P57
+        log_hi5 = log_P57 + np.log10(1.5)
+        w5 = np.clip((log_P - log_lo5) / (log_hi5 - log_lo5), 0.0, 1.0)
+        w5 = np.where((T_arr >= 1800.0) & (T_arr <= 5500.0) & in_domain,
+                      w5, 0.0)
+
+        # 6 <-> 7 : Eq. (27), applicable for T > 5500 K (Region 5 is the
+        # intermediate low-P neighbour at lower T, so the 6<->7 formula is
+        # not physically meaningful there).
+        P67 = (0.05 + (3.0 - 0.05) * (T_arr / 1000.0 - 1.0) / 39.0) * 1e9
+        log_lo6 = np.log10(np.maximum(P67, 1e-300))
+        log_hi6 = log_lo6 + np.log10(3.0)
+        w6 = np.clip((log_P - log_lo6) / (log_hi6 - log_lo6), 0.0, 1.0)
+        w6 = np.where((T_arr > 5500.0) & (T_arr <= 1.0e5) & in_domain,
+                      w6, 0.0)
+
+        if w3.ndim == 0:
+            return float(w3), float(w5), float(w6)
+        return w3, w5, w6
+
+    @staticmethod
+    def _region7_weight(P, T):
+        """
+        Analytic Region-7 weight ``w ∈ [0, 1]`` (max of the three
+        transition ramps, ignoring phase).
+
+        This is the pure analytic form of the weight, useful for
+        visualisation on a (P, T) grid.  The corrected public EoS
+        methods do **not** use this function directly; they call the
+        phase-aware ``_mazevet_correction_weight`` instead, which
+        silences the 5↔7 and 6↔7 ramps on ice-bearing points that
+        happen to fall inside their overlap strip with the 3↔7
+        transition.
+
+        See ``_region7_ramps`` for the per-ramp definitions and for a
+        description of the transition boundaries.
+
+        Parameters
+        ----------
+        P : float or array-like
+            Pressure [Pa]
+        T : float or array-like
+            Temperature [K]
+
+        Returns
+        -------
+        float or ndarray
+            ``max(w3, w5, w6)``.  Scalar if both inputs are scalar.
+        """
+        w3, w5, w6 = Haldemann20._region7_ramps(P, T)
+        w = np.maximum(np.maximum(w3, w5), w6)
+        return w if np.ndim(w) > 0 else float(w)
+
+    @staticmethod
     def _f_shift(T: float) -> float:
         """
         Specific Helmholtz free energy correction F_shift / mass.
@@ -604,13 +736,55 @@ class Haldemann20:
         """
         return self._raw_density(P, T)
 
+    def _mazevet_correction_weight(self, P: float, T: float) -> float:
+        """
+        Effective Mazevet-correction weight at (P, T), combining the
+        three analytic Region-7 ramps with a phase-aware veto on the
+        5↔7 and 6↔7 ramps.
+
+        The 3↔7 ramp is applied unconditionally within its T ≤ 2250 K
+        strip because ice-VII/ice-X is the intended low-P neighbour of
+        that transition in AQUA: points labelled ``solid-ice-X`` sitting
+        between 300 and 700 GPa are precisely the ones for which AQUA
+        blends M19 with Region 3 and so must still carry the M19 shift.
+
+        The 5↔7 and 6↔7 ramps, on the other hand, connect M19 to
+        liquid/supercritical neighbours (Brown 2018, CEA); they are
+        silenced whenever the AQUA phase code is not 5 (supercritical +
+        superionic).  This kills the residual over-correction produced
+        by the ``max``-combination rule on ice-bearing points inside the
+        T ∈ [1800, 2250] K overlap strip between the 5↔7 and 3↔7
+        transitions, without interfering with the 3↔7 ramp itself.
+        """
+        w3, w5, w6 = self._region7_ramps(P, T)
+        w3 = float(w3)
+        w5 = float(w5)
+        w6 = float(w6)
+        if w5 > 0.0 or w6 > 0.0:
+            # AQUA phase code 5 = supercritical + superionic, the only
+            # phase bucket that can contain M19 points reached via the
+            # liquid- or gas-side transitions.
+            if self._raw_phase_id(P, T) != 5:
+                w5 = 0.0
+                w6 = 0.0
+        return max(w3, w5, w6)
+
     def specific_internal_energy(self, P: float, T: float) -> float:
         """
         Calculate specific internal energy (corrected).
 
-        U(P,T) = U_AQUA(P,T) + U_shift(T)
+        U(P,T) = U_AQUA(P,T) + w_7(P,T) · U_shift(max(T, 300 K))
 
-        The shift corrects for the sign error in Mazevet et al. (2019) Eq. 13.
+        The Mazevet+19 shift is gated by the Region-7 weight ``w_7`` so
+        that it only affects points where AQUA uses the M19 EoS (fully
+        or through a transition blend).  See ``_region7_weight`` and
+        ``_mazevet_correction_weight`` for the exact definition.
+
+        The shift is evaluated at ``max(T, 300 K)`` because AQUA
+        extends M19 below 300 K via an isothermal clamp at T = 300 K
+        (Haldemann+20 §2.3.3), so the contamination stored in the table
+        at low temperature is the bug M19 produces at the 300 K
+        isotherm rather than at the query temperature.
 
         Parameters
         ----------
@@ -624,15 +798,27 @@ class Haldemann20:
         float
             Specific internal energy [J/kg]
         """
-        return self._raw_internal_energy(P, T) + self._energy_shift(T)
+        T_shift = max(float(T), 300.0)
+        return (self._raw_internal_energy(P, T)
+                + self._mazevet_correction_weight(P, T)
+                * self._energy_shift(T_shift))
 
     def specific_entropy(self, P: float, T: float) -> float:
         """
         Calculate specific entropy (corrected).
 
-        S(P,T) = S_AQUA(P,T) + S_shift(T)
+        S(P,T) = S_AQUA(P,T) + w_7(P,T) · S_shift(max(T, 300 K))
 
-        The shift corrects for the sign error in Mazevet et al. (2019) Eq. 13.
+        The Mazevet+19 shift is gated by the Region-7 weight ``w_7`` so
+        that it only affects points where AQUA uses the M19 EoS (fully
+        or through a transition blend).  See ``_region7_weight`` and
+        ``_mazevet_correction_weight`` for the exact definition.
+
+        The shift is evaluated at ``max(T, 300 K)`` because AQUA
+        extends M19 below 300 K via an isothermal clamp at T = 300 K
+        (Haldemann+20 §2.3.3), so the contamination stored in the table
+        at low temperature is the bug M19 produces at the 300 K
+        isotherm rather than at the query temperature.
 
         Parameters
         ----------
@@ -646,7 +832,10 @@ class Haldemann20:
         float
             Specific entropy [J/(kg·K)]
         """
-        return self._raw_entropy(P, T) + self._entropy_shift(T)
+        T_shift = max(float(T), 300.0)
+        return (self._raw_entropy(P, T)
+                + self._mazevet_correction_weight(P, T)
+                * self._entropy_shift(T_shift))
 
     def isobaric_heat_capacity(self, P: float, T: float) -> float:
         """
