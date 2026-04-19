@@ -201,11 +201,17 @@ class Wolf15:
             self.w_Fe = x_Fe / 0.13
         
         # Parameters for 0% Fe (pure MgSiO₃) end-member
-        # From Table 3 of Wolf et al. (2015)
+        # From Table 3 of Wolf et al. (2015). U0 and S0 anchor the brg reference
+        # at the brg-ppv-liquid triple point (155.6751 GPa, 6167.87 K):
+        #   U0_brg = 0 (pinned; brg is the G-anchor at the deep triple point, i.e.
+        #     the MgSiO₃ analogue of fcc at the fcc-hcp-liquid TP for Fe).
+        #   S0_brg = 0 suffices — at baseline (all S0=0) the raw ΔS(brg-ppv) along
+        #     the Ono & Oganov (2005) boundary is already > 0.8 J/(mol·K); S0_ppv
+        #     is lifted downward (see Sakai16) to open up a ≥1 J/(mol·K) margin.
         V0_cell_0Fe = 162.12e-30  # m³
         self.params_0Fe = {
-            'U0': -86826.,                                      # J/mol
-            'S0': -180.300,                                     # J/(mol·K)
+            'U0': 0.0,                                          # J/mol  (G-anchor at brg-ppv-liq TP)
+            'S0': 0.0,                                          # J/(mol·K)  (brg is the S0 anchor)
             'V0': V0_cell_0Fe * N_AVOGADRO / self.Z,            # m³/mol
             'K0': 262.3e9,                                      # Pa
             'K0_prime': 4.044,                                  # dimensionless
@@ -214,13 +220,15 @@ class Wolf15:
             'q': 1.39,                                          # dimensionless
             'n': self.n_atoms,                                  # dimensionless
         }
-        
+
         # Parameters for 13% Fe end-member: (Mg₀.₈₇Fe₀.₁₃)SiO₃
-        # From Table 3 of Wolf et al. (2015)
+        # From Table 3 of Wolf et al. (2015). U0, S0 inherit the 0%-Fe convention
+        # (pure MgSiO₃ is the PALEOS end-member; 13%-Fe enters only as the mixing
+        # reference, never as a stand-alone phase on the phase map).
         V0_cell_13Fe = 163.16e-30  # m³
         self.params_13Fe = {
-            'U0': -86826.,                                      # J/mol
-            'S0': -180.300,                                     # J/(mol·K)
+            'U0': 0.0,                                          # J/mol
+            'S0': 0.0,                                          # J/(mol·K)
             'V0': V0_cell_13Fe * N_AVOGADRO / self.Z,           # m³/mol
             'K0': 243.8e9,                                      # Pa
             'K0_prime': 4.160,                                  # dimensionless
@@ -1142,12 +1150,16 @@ class Sakai16:
         self.Z = 4
         
         # EoS parameters from fit 8 (ab initio, Keane model)
-        # Table 1 of Sakai et al. (2016)
+        # Table 1 of Sakai et al. (2016). U0 and S0 anchor the ppv reference
+        # at the brg-ppv-liquid triple point (155.6751 GPa, 6167.87 K):
+        #   S0_ppv set for ΔS_ppv→brg > 0 (heating at fixed P, ppv→brg) along
+        #     the Ono & Oganov (2005) boundary.
+        #   U0_ppv fixed by G-continuity at the triple point: G_ppv(P₀, T₀) = G_brg(P₀, T₀).
         V0_cell = 164.22e-30  # m³/cell
-        
+
         self.params = {
-            'U0': -86894.,                                      # J/mol
-            'S0': -180.248,                                     # J/(mol·K)
+            'U0': 11926.53546344908,                            # J/mol  (G-continuity at brg-ppv-liq TP)
+            'S0': -0.6983071971965842,                          # J/(mol·K)  (ΔS_ppv→brg > 1 J/(mol·K) on O&O boundary)
             'V0': V0_cell * N_AVOGADRO / self.Z,                # m³/mol
             'K0': 205.4e9,                                      # Pa
             'K0_prime': 5.069,                                  # dimensionless
@@ -1926,26 +1938,35 @@ class Sokolova22:
         # =====================================================================
 
         if phase == 'lp-cen':
+            # Sokolova+22 Table 2: U0 = -1565.1 kJ/mol; no anharmonic term (a0, m blank).
+            # S0 set for ΔS(en - lp) > 0 along the T > 750 K branch of the
+            # LP-CEn ↔ OrthoEn parabola (P_lpcen_en); the raw gap already exceeds
+            # 1 J/(mol·K), so the calibration value is just the small residual
+            # lift required to hit a consistent ∼1 J/(mol·K) margin.
             self.params = {
-                'U0': -99915.,        # J/mol
-                'S0': -191.087,       # J/(mol·K)
-                'V0': 31.473e-6,      # m³/mol
-                'K0': 102.8e9,        # Pa
-                'K0_prime': 8.40,     # dimensionless
-                'theta01': 368.0,     # K
-                'theta02': 960.0,     # K
-                'm1': 6.0,            # dimensionless
-                'm2': 9.0,            # dimensionless
-                'gamma0': 0.85,       # dimensionless
+                'U0': -1565100.,           # J/mol  (S22 Table 2: -1565.1 kJ/mol)
+                'S0': 0.05966225974237,    # J/(mol·K)  (ΔS > 1 on LP-CEn↔OrthoEn parabola)
+                'V0': 31.28e-6,       # m³/mol
+                'K0': 112.8e9,        # Pa
+                'K0_prime': 6.27,     # dimensionless
+                'theta01': 327.0,     # K
+                'theta02': 973.0,     # K
+                'm1': 6.785,          # dimensionless
+                'm2': 8.215,          # dimensionless
+                'gamma0': 0.98,       # dimensionless
                 'gamma_inf': 0.0,     # dimensionless
-                'beta': 1.0,          # dimensionless
-                'a0': 17.0e-6,        # K⁻¹
-                'm_anh': 1.0,         # dimensionless
+                'beta': 0.6,          # dimensionless
+                'a0': 0.0,            # K⁻¹  (S22 Table 2: no anharmonic term)
+                'm_anh': 1.0,         # dimensionless  (unused when a0 = 0)
             }
         elif phase == 'orthoen':
+            # Sokolova+22 Table 2: U0 = -1564.6 kJ/mol; a0 = 13e-6 K⁻¹, m = 1.
+            # S0 = 0 — OrthoEn is the pyroxene anchor against which LP-CEn and
+            # HP-CEn S0 values are ratified (and against which the Stebbins+1984
+            # entropy-of-fusion anchor S_liq - S_en is applied at 1 bar, 1831 K).
             self.params = {
-                'U0': -101463.,       # J/mol
-                'S0': -202.356,       # J/(mol·K)
+                'U0': -1564600.,      # J/mol  (S22 Table 2: -1564.6 kJ/mol)
+                'S0': 0.0,            # J/(mol·K)  (pyroxene anchor)
                 'V0': 31.347e-6,      # m³/mol
                 'K0': 106.2e9,        # Pa
                 'K0_prime': 7.80,     # dimensionless
@@ -1960,21 +1981,27 @@ class Sokolova22:
                 'm_anh': 1.0,         # dimensionless
             }
         elif phase == 'hp-cen':
+            # Sokolova+22 Table 2: U0 = -1559.1 kJ/mol; no anharmonic term.
+            # S0 set for ΔS(hp - en) > 0 along the OrthoEn↔HP-CEn parabola
+            # P_en_hpcen (which curves from the pyroxene TP toward high T) and
+            # for ΔS(hp - lp) > 0 along the LP-CEn↔HP-CEn line P_lpcen_hpcen.
+            # Raw ΔS(hp - en) is negative at T ∼ 2000 K, so this lift is
+            # necessary (not residual).
             self.params = {
-                'U0': -99705.,        # J/mol
-                'S0': -192.88,       # J/(mol·K)
+                'U0': -1559100.,           # J/mol  (S22 Table 2: -1559.1 kJ/mol)
+                'S0': 4.38889089061968,    # J/(mol·K)  (ΔS > 1 on OrthoEn↔HP-CEn parabola)
                 'V0': 30.310e-6,      # m³/mol
-                'K0': 112.0e9,        # Pa
-                'K0_prime': 6.20,     # dimensionless
-                'theta01': 373.0,     # K
-                'theta02': 985.0,     # K
+                'K0': 128.4e9,        # Pa
+                'K0_prime': 4.52,     # dimensionless
+                'theta01': 327.0,     # K
+                'theta02': 973.0,     # K
                 'm1': 6.785,          # dimensionless
                 'm2': 8.215,          # dimensionless
-                'gamma0': 0.745,      # dimensionless
+                'gamma0': 0.98,       # dimensionless
                 'gamma_inf': 0.0,     # dimensionless
-                'beta': 1.0,          # dimensionless
-                'a0': 0.0,            # K⁻¹
-                'm_anh': 1.0,         # dimensionless
+                'beta': 0.6,          # dimensionless
+                'a0': 0.0,            # K⁻¹  (S22 Table 2: no anharmonic term)
+                'm_anh': 1.0,         # dimensionless  (unused when a0 = 0)
             }
 
         # Derived constant: Kunc equation parameter
@@ -2883,9 +2910,20 @@ class Wolf18:
         ])
         self._rtpress.set_params(param_values)
 
-        # Reference-state values for energy/entropy offsets
-        self.U0 = 4565746.      # J/mol
-        self.S0 = 801.872       # J/(mol·K)
+        # Reference-state values for energy/entropy offsets.
+        #   S0 set so that ΔS_fusion = S_liq - S_orthoen = 1.01·N·k_B =
+        #     41.99 J/(mol·K) (N = 5 atoms/fu) at the Belonoshko+05 P→0 branch
+        #     of the melting curve (1 bar, 1831 K) — this matches Stebbins+1984
+        #     calorimetry exactly. The same S0 simultaneously delivers
+        #     ΔS_fusion > +450 J/(mol·K) on the brg- and ppv-liquid branches
+        #     (dominated there by the cold offset of the RTpress reference
+        #     state, not the entropy-of-melting physics itself); no Stebbins
+        #     drift is needed here, unlike the Zhang+15 drift accepted in the
+        #     Fe Luo24 calibration.
+        #   U0 set by G-continuity at the brg-ppv-liquid triple point
+        #     (155.6751 GPa, 6167.87 K): G_liq(P₀, T₀) = G_brg(P₀, T₀).
+        self.U0 = 5987008.1955171    # J/mol  (G-continuity at brg-ppv-liq TP)
+        self.S0 = 820.3028490570698  # J/(mol·K)  (Stebbins+1984 anchor at 1 bar, 1831 K)
 
         # Unit conversion factor: GPa·Å³/atom → J/kg
         # (also applies to entropy and heat capacity per-K quantities)
@@ -3133,6 +3171,12 @@ class Wolf18:
 # Pyroxene triple point (Sokolova et al. 2022)
 _P_TRIPLE_PYR = 6.5e9    # Pa - En–LP-CEn–HP-CEn triple point
 _T_TRIPLE_PYR = 1100.0   # K - En–LP-CEn–HP-CEn triple point
+
+# Deep MgSiO₃ triple point (brg–ppv–liquid) — anchor for U₀/S₀ calibration.
+# Computed as the intersection of the Ono & Oganov (2005) brg↔ppv boundary
+# with the Fei+21 branch of T_melt_MgSiO3(P) using scipy.optimize.brentq.
+_P_TRIPLE_MGSIO3 = 155.6751e9   # Pa - brg–ppv–liquid triple point
+_T_TRIPLE_MGSIO3 = 6167.87      # K  - brg–ppv–liquid triple point
 
 # HP-CEn → Bridgmanite transition pressure (empirical upper limit for
 # Sokolova22 validity; roughly consistent with absorption of majorite

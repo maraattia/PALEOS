@@ -139,11 +139,12 @@ class Dorogokupets17:
         # Reference conditions
         self.T0 = 298.15  # K
         
-        # Parameters for bcc-Fe (α-phase/δ-phase) from Table 1
+        # Parameters for bcc-Fe (α-phase/δ-phase) from Table 1.
+        # U0 = 0 and S0 = 0 are D17's raw integration convention (Table 1
+        # U0; S0 is the Helmholtz integration constant set to zero).
         self.bcc_params = {
-            #'U0': 0.0,              # J/mol
-            'U0': 116.636e3,        # J/mol
-            'S0': -94.321,          # J/(mol·K)
+            'U0': 0.0,              # J/mol  (D17 Table 1)
+            'S0': 0.0,              # J/(mol·K)  (D17 raw convention)
             'V0': 7.092e-6,         # m³/mol
             'K0': 164.0e9,          # Pa
             'K0_prime': 5.50,       # dimensionless
@@ -159,11 +160,12 @@ class Dorogokupets17:
             'n': 1.0                # dimensionless
         }
         
-        # Parameters for fcc-Fe (γ-phase) from Table 1
+        # Parameters for fcc-Fe (γ-phase) from Table 1.
+        # U0 = 4470 J/mol and S0 = 0 are D17's raw convention (Table 1 U0;
+        # S0 is the Helmholtz integration constant set to zero).
         self.fcc_params = {
-            #'U0': 4470.,            # J/mol
-            'U0': 121.080e3,        # J/mol
-            'S0': -94.091,          # J/(mol·K)
+            'U0': 4470.0,           # J/mol  (D17 Table 1)
+            'S0': 0.0,              # J/(mol·K)  (D17 raw convention)
             'V0': 6.9285e-6,        # m³/mol
             'K0': 146.2e9,          # Pa
             'K0_prime': 4.67,       # dimensionless
@@ -967,11 +969,17 @@ class Miozzi20:
         
         # EoS parameters from the paper (preferred solution)
         # These are the parameters obtained with the full dataset including
-        # low-pressure measurements
+        # low-pressure measurements.
+        # S0 is lifted by +8.0 J/(mol·K) above the raw M20 convention so that
+        # ΔS on heating is positive along the α-ε boundary (otherwise the M20
+        # raw absolute entropy under-predicts S at low T relative to D17 bcc
+        # by up to ~7 J/(mol·K), giving downward S jumps on α→ε crossings).
+        # U0 is fixed by enforcing Gibbs-energy continuity at the fcc-hcp-liquid
+        # triple point (98.5 GPa, 3712 K): G_hcp(TP) = G_fcc(TP); since G is
+        # S0-independent, U0 is unchanged by the S0 lift.
         self.params = {
-            #'U0': 0.0,              # J/mol
-            'U0': -41.649e3,        # J/mol
-            'S0': -72.427,          # J/(mol·K)
+            'U0': 13770.894,        # J/mol  (from G-continuity at TP)
+            'S0': 8.0,              # J/(mol·K)  (M20 raw + 8.0 for α-ε ΔS>0)
             'V0': 6.87e-6,          # m³/mol
             'K0': 129.0e9,          # Pa
             'K0_prime': 6.24,       # dimensionless
@@ -1657,10 +1665,14 @@ class Hakim18:
         
         # Cold compression parameters (Holzapfel equation, Section 3.1)
         # Thermal model parameters from Bouchet et al. (2013), Table F.7
+        # U0/S0 set for continuity with the shifted Miozzi+20 EoS at the centre
+        # of the 310 ± 100 GPa blend zone, at the γ-ε phase boundary temperature
+        # T_γε(310 GPa) ≈ 2502 K.  S0 shifts in lockstep with M20 (+8.0) so
+        # that S stays continuous across the blend; U0 is unaffected (both
+        # sides of the blend receive the same T·ΔS0 shift to U).
         self.params = {
-            #'U0': 0.0,              # J/mol
-            'U0': 1127.986e3,       # J/mol
-            'S0': -124.828,         # J/(mol·K)
+            'U0': 1183406.037,      # J/mol
+            'S0': -44.401441,       # J/(mol·K)  (M20 raw blend-centre value + 8.0)
             'V0': 4.28575e-6,       # m³/mol
             'P0': 234.4e9,          # Pa
             'KT0': 1145.7e9,        # Pa
@@ -2715,10 +2727,18 @@ class Luo24:
         V0_molar = V0_cell * N_AVOGADRO / 64  # m³/mol
         
         # EoS parameters
+        # S0 is set to ensure ΔS_fusion > 0 everywhere on the Anzellini+13
+        # melting curve *after* the M20/H18 hcp S0 is lifted to fix the α-ε
+        # boundary.  The hcp lift reduces the hcp-liq ΔS_fusion, so Luo24 S0
+        # must rise by +4.5 J/(mol·K) beyond the Zhang+15 P=0 anchor to keep
+        # the hcp-liq branch positive.  This drifts the P=0 anchor from
+        # 1.16 k_B (Zhang+15) to ≈1.70 k_B — a deliberate trade-off to keep
+        # the full phase diagram free of 2nd-law violations on heating.
+        # U0 is fixed by enforcing Gibbs-energy continuity at the fcc-hcp-liquid
+        # triple point (98.5 GPa, 3712 K): G_liq(TP) = G_fcc(TP).
         self.params = {
-            #'U0': 0.0,              # J/mol
-            'U0': 187.884e3,        # J/mol
-            'S0': 44.828,           # J/(mol·K)
+            'U0': 337536.231,       # J/mol  (from G-continuity at TP)
+            'S0': 153.099,          # J/(mol·K)  (Zhang+15 anchor + 4.5 for hcp-liq ΔS>0)
             'V0': V0_molar,         # m³/mol
             'K0': 49.249e9,         # Pa
             'K0_prime': 4.976,      # dimensionless
