@@ -23,15 +23,15 @@ PALEOS can be used in two ways:
 
 ### Iron (Fe)
 
-Five phases covering the complete planetary core phase diagram: α-bcc, δ-bcc, γ-fcc (Dorogokupets et al. 2017), ε-hcp (Miozzi et al. 2020 blended with Hakim et al. 2018), and liquid (Luo et al. 2024). Solid phase boundaries from Dorogokupets et al. (2017); melting curve from Anzellini et al. (2013). Reference state at the bcc–fcc–liquid triple point (5.2 GPa, 1991 K).
+Five phases covering the complete planetary core phase diagram: α-bcc, δ-bcc, γ-fcc (Dorogokupets et al. 2017), ε-hcp (Miozzi et al. 2020 blended with Hakim et al. 2018), and liquid (Luo et al. 2024). Solid phase boundaries from Dorogokupets et al. (2017); melting curve from Anzellini et al. (2013). Reference state at the fcc–hcp–liquid triple point (98.5 GPa, 3712 K), pinning the anchor on the three phases that dominate planetary cores. Per-phase reference constants $(U_0, S_0)$ are set by decoupling: $S_0$ is fixed on thermodynamic grounds—ensuring $\Delta S > 0$ across every heating-accessible solid–solid boundary and $\Delta S_\mathrm{fusion} > 0$ on every branch of the Anzellini et al. (2013) melting curve—and $U_0$ is then fixed per phase by enforcing Gibbs-energy continuity at the triple point.
 
 ### Magnesium silicate (MgSiO₃)
 
-Six phases covering the planetary mantle: three pyroxene polymorphs—LP-clinoenstatite, orthoenstatite, HP-clinoenstatite (Sokolova et al. 2022)—bridgmanite (Wolf et al. 2015), postperovskite (Sakai et al. 2016), and liquid (Wolf & Bower 2018 with parameters from Luo & Deng 2025). Solid phase boundaries from Sokolova et al. (2022), Ono & Oganov (2005); melting curve from Belonoshko et al. (2005) and Fei et al. (2021). Reference state at the pyroxene triple point (6.5 GPa, 1100 K).
+Six phases covering the planetary mantle: three pyroxene polymorphs—LP-clinoenstatite, orthoenstatite, HP-clinoenstatite (Sokolova et al. 2022)—bridgmanite (Wolf et al. 2015), postperovskite (Sakai et al. 2016), and liquid (Wolf & Bower 2018 with parameters from Luo & Deng 2025). Solid phase boundaries from Sokolova et al. (2022), Ono & Oganov (2005); melting curve from Belonoshko et al. (2005) and Fei et al. (2021). Reference state at the brg–ppv–liquid triple point (155.7 GPa, 6168 K), computed numerically as the intersection of the Ono & Oganov brg↔ppv boundary with the Fei et al. (2021) melting branch. Per-phase reference constants $(U_0, S_0)$ are set by decoupling: $S_0$ is fixed on thermodynamic grounds—ensuring $\Delta S > 0$ across every heating-accessible solid–solid boundary and matching the Stebbins et al. (1984) calorimetric anchor $\Delta S_\mathrm{fusion}(1\,\mathrm{bar}, 1831\,\mathrm{K}) = 41.99\,\mathrm{J/(mol\cdot K)}$ exactly—and $U_0$ is then fixed per phase by enforcing Gibbs-energy continuity at the triple point.
 
 ### Water (H₂O)
 
-Based on the AQUA equation of state (Haldemann et al. 2020), covering ice polymorphs (Ih through X), liquid, vapor, and supercritical/superionic water. Includes a correction for a sign error in the Mazevet et al. (2019) free energy parametrization affecting entropy and internal energy in the supercritical regime.
+Based on the AQUA equation of state (Haldemann et al. 2020), covering ice polymorphs (Ih through X), liquid, vapor, and supercritical/superionic water. Includes two corrections to the entropy and internal energy for bugs in the Mazevet et al. (2019) Helmholtz free-energy parametrization used in the supercritical/superionic regime—a sign error on the first two terms of $F_T$, and the revision of the reference entropy from $S_0 = 4.9\,k_B\,n_\mathrm{at}$ to $9.8\,k_B\,n_\mathrm{at}$—gated analytically to the Region 7 blend bands AQUA uses to stitch Mazevet et al. (2019) with its neighbors.
 
 ## Thermodynamic quantities
 
@@ -61,13 +61,15 @@ pip install -e .
 
 ### Option 1: Lookup tables
 
-Precomputed tables are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19000316) as plain-text, whitespace-delimited files. Each table lives on a log-uniform grid in (P, T) at 150 points per decade, achieving relative density errors below 10⁻⁴ at the 99th percentile under bilinear interpolation in (log₁₀ P, log₁₀ T) space.
+Precomputed tables are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19000316) as plain-text, whitespace-delimited files on log-uniform $(P, T)$ grids. The standard 150 points-per-decade (ppd) variants are the everyday workhorses: bilinear interpolation in $(\log_{10} P, \log_{10} T)$ keeps relative density errors below $10^{-4}$ at the 99th percentile. High-resolution 600 ppd variants are also available for Fe and MgSiO₃, for workflows where thermodynamic derivatives ($\alpha$, $C_P$, $\nabla_\mathrm{ad}$) need tighter accuracy than bilinear interpolation of the 150 ppd grid can deliver.
 
-| Table                         | Material | P range          | T range     |
-|-------------------------------|----------|------------------|-------------|
-| `paleos_iron_tables_pt.dat`   | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K |
-| `paleos_mgsio3_tables_pt.dat` | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K |
-| `paleos_water_tables_pt.dat`  | H₂O      | 1 μbar – 100 TPa | 100 – 10⁵ K |
+| Table                                 | Material | P range          | T range     | Resolution |
+|---------------------------------------|----------|------------------|-------------|------------|
+| `paleos_iron_tables_pt.dat`           | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K | 150 ppd    |
+| `paleos_iron_tables_pt_highres.dat`   | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K | 600 ppd    |
+| `paleos_mgsio3_tables_pt.dat`         | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K | 150 ppd    |
+| `paleos_mgsio3_tables_pt_highres.dat` | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K | 600 ppd    |
+| `paleos_water_tables_pt.dat`          | H₂O      | 1 μbar – 100 TPa | 100 – 10⁵ K | 150 ppd    |
 
 Each file contains ten columns: `P`, `T`, `rho`, `u`, `s`, `cp`, `cv`, `alpha`, `nabla_ad`, `phase`.
 
@@ -103,7 +105,7 @@ interp = RegularGridInterpolator((log_P, log_T), rho)
 rho_query = interp([[np.log10(100e9), np.log10(4000)]])[0]
 ```
 
-> **Note:** Grid points where the EoS failed to converge are omitted from the MgSiO₃ table (primarily in the low-P, high-T liquid regime). Reconstruct the full rectangular grid with NaN fill before building an interpolator, as shown above.
+> **Note:** Grid points where the EoS failed to converge are omitted from the MgSiO₃ table (primarily in the low-P, high-T liquid regime, reflecting the vapor/supercritical regime not captured by PALEOS). Reconstruct the full rectangular grid with NaN fill before building an interpolator, as shown above.
 
 ### Option 2: Python API
 
