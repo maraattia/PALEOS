@@ -278,14 +278,16 @@ class Haldemann20:
             )
 
         # Extract columns
-        P_all = data[:, 0]   # Pa
-        T_all = data[:, 1]   # K
-        rho_all = data[:, 2] # kg/m³
-        nad_all = data[:, 3] # dimensionless — adiabatic gradient
-        s_all = data[:, 4]   # J/(kg·K) — specific entropy
-        u_all = data[:, 5]   # J/kg — specific internal energy
-        w_all = data[:, 6]   # m/s — speed of sound
-        # columns 7-9: μ, x_ion, x_d (not used in the public interface)
+        P_all = data[:, 0]    # Pa
+        T_all = data[:, 1]    # K
+        rho_all = data[:, 2]  # kg/m³
+        nad_all = data[:, 3]  # dimensionless — adiabatic gradient
+        s_all = data[:, 4]    # J/(kg·K) — specific entropy
+        u_all = data[:, 5]    # J/kg — specific internal energy
+        w_all = data[:, 6]    # m/s — speed of sound
+        mmw_all = data[:, 7]  # kg/mol — mean molecular weight
+        xion_all = data[:, 8] # dimensionless — ionization fraction
+        xd_all = data[:, 9]   # dimensionless — dissociation fraction
         phase_all = data[:, 10].astype(int)
 
         # Determine the unique grid axes
@@ -311,6 +313,9 @@ class Haldemann20:
         self._s_grid = s_all.reshape(self.n_P, self.n_T)
         self._u_grid = u_all.reshape(self.n_P, self.n_T)
         self._w_grid = w_all.reshape(self.n_P, self.n_T)
+        self._mmw_grid = mmw_all.reshape(self.n_P, self.n_T)
+        self._xion_grid = xion_all.reshape(self.n_P, self.n_T)
+        self._xd_grid = xd_all.reshape(self.n_P, self.n_T)
         self._phase_grid = phase_all.reshape(self.n_P, self.n_T)
 
     def _build_interpolators(self):
@@ -341,6 +346,17 @@ class Haldemann20:
         )
         self._interp_log_w = RegularGridInterpolator(
             (lP, lT), np.log10(np.clip(self._w_grid, 1e-30, None)), **kw
+        )
+
+        # Composition / dissociation / ionization fields
+        self._interp_mmw = RegularGridInterpolator(
+            (lP, lT), self._mmw_grid, **kw
+        )
+        self._interp_xion = RegularGridInterpolator(
+            (lP, lT), self._xion_grid, **kw
+        )
+        self._interp_xd = RegularGridInterpolator(
+            (lP, lT), self._xd_grid, **kw
         )
 
         # Phase grid (nearest-neighbour for integer-valued field)
@@ -423,6 +439,18 @@ class Haldemann20:
     def _raw_phase_id(self, P: float, T: float) -> int:
         """Interpolate (nearest-neighbour) the AQUA phase ID."""
         return int(round(self._eval_interp(self._interp_phase, P, T)))
+
+    def _raw_mmw(self, P: float, T: float) -> float:
+        """Interpolate mean molecular weight from the AQUA table [kg/mol]."""
+        return self._eval_interp(self._interp_mmw, P, T)
+
+    def _raw_ionization_fraction(self, P: float, T: float) -> float:
+        """Interpolate ionization fraction from the AQUA table [dimensionless]."""
+        return self._eval_interp(self._interp_xion, P, T)
+
+    def _raw_dissociation_fraction(self, P: float, T: float) -> float:
+        """Interpolate dissociation fraction from the AQUA table [dimensionless]."""
+        return self._eval_interp(self._interp_xd, P, T)
 
     # =========================================================================
     # Mazevet et al. (2019) F_T correction
@@ -982,6 +1010,68 @@ class Haldemann20:
         pid = self._raw_phase_id(P, T)
         return _PHASE_MAP.get(pid, f'unknown({pid})')
 
+    def mmw(self, P: float, T: float) -> float:
+        """
+        Mean molecular weight from the AQUA table.
+
+        Parameters
+        ----------
+        P : float
+            Pressure [Pa]
+        T : float
+            Temperature [K]
+
+        Returns
+        -------
+        float
+            Mean molecular weight [kg/mol]
+        """
+        return self._raw_mmw(P, T)
+
+    def ionization_fraction(self, P: float, T: float) -> float:
+        """
+        Ionization fraction from the AQUA table, ``x_ion = N_e / N_tot``.
+
+        The bilinearly interpolated value is clipped to ``[0, 1]`` as a
+        defensive measure: the tabulated AQUA values are already in this
+        range, so linear interpolation cannot leave it, but the clip
+        guards against future numerical rounding.
+
+        Parameters
+        ----------
+        P : float
+            Pressure [Pa]
+        T : float
+            Temperature [K]
+
+        Returns
+        -------
+        float
+            Ionization fraction (dimensionless, ∈ [0, 1])
+        """
+        return float(np.clip(self._raw_ionization_fraction(P, T), 0.0, 1.0))
+
+    def dissociation_fraction(self, P: float, T: float) -> float:
+        """
+        Dissociation fraction from the AQUA table, ``x_d = 1 - N_H2O / N_tot``.
+
+        The bilinearly interpolated value is clipped to ``[0, 1]`` as a
+        defensive measure (see :meth:`ionization_fraction`).
+
+        Parameters
+        ----------
+        P : float
+            Pressure [Pa]
+        T : float
+            Temperature [K]
+
+        Returns
+        -------
+        float
+            Dissociation fraction (dimensionless, ∈ [0, 1])
+        """
+        return float(np.clip(self._raw_dissociation_fraction(P, T), 0.0, 1.0))
+
     def adiabatic_gradient_from_corrected_entropy(
         self, P: float, T: float
     ) -> float:
@@ -1274,3 +1364,15 @@ class WaterEoS:
     def adiabatic_gradient(self, P, T):
         """Calculate dimensionless adiabatic temperature gradient."""
         return self._eos.adiabatic_gradient(P, T)
+
+    def mmw(self, P, T):
+        """Mean molecular weight [kg/mol]."""
+        return self._eos.mmw(P, T)
+
+    def ionization_fraction(self, P, T):
+        """Ionization fraction x_ion = N_e/N_tot (dimensionless, ∈ [0, 1])."""
+        return self._eos.ionization_fraction(P, T)
+
+    def dissociation_fraction(self, P, T):
+        """Dissociation fraction x_d = 1 - N_H2O/N_tot (dimensionless, ∈ [0, 1])."""
+        return self._eos.dissociation_fraction(P, T)
