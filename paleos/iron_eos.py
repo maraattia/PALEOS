@@ -3939,22 +3939,33 @@ _P_ALPHA_EPSILON_MAX = 15.8e9    # Pa - Upper limit of α-ε transition
 def T_gamma_epsilon(P: float) -> float:
     """
     γ-ε (fcc-hcp) phase transition temperature.
-    
-    Equation (7) from BICEPS paper (Dorogokupets et al. 2017, Fig. 1):
-    T_γε(P) = 575 + 18.7(P/GPa) + 0.213(P/GPa)^2 - 8.17×10^{-4}(P/GPa)^3
-    
+
+    Cubic refit honoring both Dorogokupets et al. (2017) triple points,
+    the α-γ-ε point at (7.3 GPa, 820 K) and the γ-ε-liquid point at
+    (98.5 GPa, 3712 K):
+    T_γε(P) = 679.517 + 17.7329(P/GPa) + 0.213(P/GPa)^2 - 8.17×10^{-4}(P/GPa)^3
+
+    The quadratic and cubic curvature terms are retained from the original
+    BICEPS fit (Eq. 7, Haldemann et al. 2024), which is tuned to the
+    high-pressure end of the D17 Fig. 1 boundary. The constant and linear
+    coefficients are re-solved so the curve passes exactly through both D17
+    triple points. The original BICEPS cubic undershot the α-γ-ε point by
+    97.5 K (722.5 vs 820 K), pinching the ε field to zero width below
+    ~8.5 GPa; this refit closes that pinch so ε nucleates exactly at 7.3 GPa
+    while preserving the −9 K agreement at the γ-ε-liquid point.
+
     Parameters
     ----------
     P : float
         Pressure [Pa]
-        
+
     Returns
     -------
     float
         Transition temperature [K]
     """
     P_GPa = P / 1e9
-    return 575.0 + 18.7 * P_GPa + 0.213 * P_GPa**2 - 8.17e-4 * P_GPa**3
+    return 679.517133 + 17.732866 * P_GPa + 0.213 * P_GPa**2 - 8.17e-4 * P_GPa**3
 
 
 def T_alpha_gamma(P: float) -> float:
