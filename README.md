@@ -6,9 +6,9 @@ An open-source Python package for computing thermodynamic properties of planetar
 
 > **Just want the data?** Precomputed tables are available on Zenodo—no installation required:
 >
-> | **EoS lookup tables** (Fe, MgSiO₃, H₂O) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19000316.svg)](https://doi.org/10.5281/zenodo.19000316) |
+> | **EoS lookup tables** (Fe, MgSiO₃, H₂O) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19000315.svg)](https://doi.org/10.5281/zenodo.19000315) |
 > |---|---|
-> | **Mass–radius tables** (rocky & water-rich) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19221215.svg)](https://doi.org/10.5281/zenodo.19221215) |
+> | **Mass–radius tables** (rocky & water-rich) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19221214.svg)](https://doi.org/10.5281/zenodo.19221214) |
 
 ## Overview
 
@@ -61,7 +61,7 @@ pip install -e .
 
 ### Option 1: Lookup tables
 
-Precomputed tables are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19000316) as plain-text, whitespace-delimited files on log-uniform $(P, T)$ grids. The standard 150 points-per-decade (ppd) variants are the everyday workhorses: bilinear interpolation in $(\log_{10} P, \log_{10} T)$ keeps relative density errors below $10^{-4}$ at the 99th percentile. High-resolution 600 ppd variants are also available for Fe and MgSiO₃, for workflows where thermodynamic derivatives ($\alpha$, $C_P$, $\nabla_\mathrm{ad}$) need tighter accuracy than bilinear interpolation of the 150 ppd grid can deliver.
+Precomputed tables are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19000315) as plain-text, whitespace-delimited files on log-uniform $(P, T)$ grids. The standard 150 points-per-decade (ppd) variants are the everyday workhorses: bilinear interpolation in $(\log_{10} P, \log_{10} T)$ keeps relative density errors below $10^{-4}$ at the 99th percentile. High-resolution 600 ppd variants are also available for Fe and MgSiO₃, for workflows where thermodynamic derivatives ($\alpha$, $C_P$, $\nabla_\mathrm{ad}$) need tighter accuracy than bilinear interpolation of the 150 ppd grid can deliver.
 
 | Table                                 | Material | P range          | T range     | Resolution |
 |---------------------------------------|----------|------------------|-------------|------------|
@@ -151,7 +151,7 @@ alpha = h2o.thermal_expansion(50e9, 2000)
 
 ### Mass–radius tables
 
-Precomputed mass–radius relations for rocky and water-rich planets are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19221215). The archive contains one `.dat` file per surface temperature, organized in `rocky/` and `water/` subdirectories.
+Precomputed mass–radius relations for rocky and water-rich planets are hosted on [Zenodo](https://doi.org/10.5281/zenodo.19221214). The archive contains one `.dat` file per surface temperature, organized in `rocky/` and `water/` subdirectories.
 
 | Family | Composition | CMF/WMF values | T_surf range | Files |
 |--------|-------------|----------------|--------------|-------|
