@@ -37,6 +37,8 @@ Author: Mara Attia
 Date: February 2026
 """
 
+from functools import lru_cache
+
 import numpy as np
 from scipy.optimize import brentq
 
@@ -2845,7 +2847,8 @@ class Wolf18:
     a one-time setup cost (~seconds).
 
     The volume solver converts from the PALEOS (P, T) interface to
-    the RTpress native (V, T) interface using Brent's method.
+    the RTpress native (V, T) interface using Brent's method, restricted
+    to the mechanically stable dense branch below the liquid spinodal.
 
     Internal RTpress units (atomic basis): V in Å³/atom, P in GPa,
     E in GPa·Å³/atom, S in GPa·Å³/(K·atom). All conversions to SI
@@ -2927,15 +2930,57 @@ class Wolf18:
         # Unit conversion factor: amu/Å³ → kg/m³
         self._rho_to_SI = self._AMU_TO_KG / self._ANG3_TO_M3
 
+        self._spinodal_volume_cached = lru_cache(maxsize=8192)(self._spinodal_volume)
+
     # =========================================================================
     # Volume solver
     # =========================================================================
+
+    def _spinodal_volume(self, T: float) -> float:
+        """
+        Upper volume bound of the mechanically stable dense liquid branch.
+
+        Scans K_T(V, T) outward from 0.3 V0 and returns the first volume
+        where it reaches zero (the liquid spinodal), or 3 V0 if K_T stays
+        positive. Beyond the spinodal RTpress gives either dP/dV > 0 or a
+        second low-density branch far outside its calibration, so neither
+        is used. Every spinodal between 400 K and 1e5 K lies between
+        0.79 V0 and 1.43 V0. Results are cached per temperature.
+
+        Parameters
+        ----------
+        T : float
+            Temperature [K]
+
+        Returns
+        -------
+        float
+            Spinodal volume [Å³/atom]
+        """
+        V = np.geomspace(0.3, 3.0, 49) * self._V0
+        K_T = self._rtpress.eval_bulk_mod(V, T, const='T')
+        unstable = np.flatnonzero(~(K_T > 0))
+        if unstable.size == 0:
+            return V[-1]
+        i = unstable[0]
+        if i == 0:
+            raise RuntimeError(
+                f"Wolf18 liquid MgSiO₃ has K_T <= 0 at 0.3 V0 for T = {T:.1f} K."
+            )
+        if not np.isfinite(K_T[i]):
+            return V[i - 1]
+        return brentq(lambda v: self._rtpress.eval_bulk_mod(v, T, const='T'),
+                      V[i - 1], V[i], xtol=1e-12, rtol=1e-12)
 
     def _find_volume(self, P: float, T: float) -> float:
         """
         Find atomic volume for given pressure and temperature.
 
-        Solves P_RTpress(V, T) = P_target using Brent's method.
+        Solves P_RTpress(V, T) = P_target with Brent's method on the dense
+        branch, between 0.01 V0 and the spinodal volume, where P(V) falls
+        monotonically. Where the target pressure lies below the spinodal
+        pressure, no mechanically stable liquid exists and no root is
+        returned.
 
         Parameters
         ----------
@@ -2952,42 +2997,23 @@ class Wolf18:
         Raises
         ------
         RuntimeError
-            If root finding fails to converge
+            If no stable liquid root exists at (P, T)
         """
         P_GPa = P / self._GPA_TO_PA
-
-        V_min = 0.70 * self._V0
-        V_max = 1.04 * self._V0
+        V_lo = 0.01 * self._V0
+        V_hi = self._spinodal_volume_cached(float(T))
 
         def residual(V):
             return self._rtpress.eval_press(V, T) - P_GPa
 
-        try:
-            V = brentq(residual, V_min, V_max, xtol=1e-14, rtol=1e-12)
-            return V
-        except ValueError:
-            # Empirical integration brackets ensuring maximal convergence
-            if T > 4000. and P_GPa < 1.:
-                V_min = 1. * self._V0
-                V_max = 2. * self._V0
-            else:
-                V_min = 0.60 * self._V0
-                V_max = 1.15 * self._V0
-            try:
-                V = brentq(residual, V_min, V_max, xtol=1e-14, rtol=1e-12)
-                return V
-            except ValueError:
-                try:
-                    V_min = 0.01 * self._V0
-                    V_max = 1.00 * self._V0
-                    V = brentq(residual, V_min, V_max, xtol=1e-14, rtol=1e-12)
-                    return V
-                except ValueError:
-                    raise RuntimeError(
-                        f"Failed to find volume at P = {P/1e9:.2f} GPa, T = {T:.1f} K. "
-                        f"Pressure may be outside valid range for Wolf18 liquid "
-                        f"MgSiO₃ EoS."
+        r_lo, r_hi = residual(V_lo), residual(V_hi)
+        if not (np.isfinite(r_lo) and np.isfinite(r_hi) and r_lo > 0.0 > r_hi):
+            raise RuntimeError(
+                f"No stable Wolf18 liquid MgSiO₃ volume at P = {P/1e9:.4g} GPa, "
+                f"T = {T:.1f} K: the pressure lies outside "
+                f"[{(r_hi + P_GPa):.4g}, {(r_lo + P_GPa):.4g}] GPa on the dense branch."
             )
+        return brentq(residual, V_lo, V_hi, xtol=1e-14, rtol=1e-12)
 
     # =========================================================================
     # Public methods: all take P [Pa] and T [K], return SI units
