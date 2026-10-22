@@ -2885,13 +2885,17 @@ class Wolf18:
         self.T0 = 3000.0  # K
         self._V0 = 14.352  # Å³/atom
 
-        # Initialize RTpress backend (atomic basis: V in Å³/atom, P in GPa)
-        self._rtpress = _RTpress(N=self.n_atoms, mavg=self._mavg, basis='atomic')
+        # Atomic basis: every RTpress quantity is per atom, so N counts one
+        # atom; n_atoms only converts between atoms and formula units.
+        self._rtpress = _RTpress(N=1, mavg=self._mavg, basis='atomic')
 
         # Luo & Deng (2025) parameter set (Table 1)
         # Calibrated against PBEsol AIMD data for MgSiO₃ liquid,
         # 0-1200 GPa, 2200-14000 K
         PV = self._PV_UNIT
+        # RTpress writes C_V = N k_B (b (T/T0)^(m-1) + 3/2), so the published
+        # b_n [eV/atom] (Wolf & Bower 2018, Eqs. 8-9) enter as b_n m / (k_B T0).
+        b_scale = 0.6 / 3000.0 * PV / self._rtpress.KBOLTZ
         param_values = np.array([
             14.352,             # V0 [Å³/atom]
             3000.0,             # T0 [K]
@@ -2902,28 +2906,19 @@ class Wolf18:
             0.158,              # gamma0 [dimensionless]
             -1.710,             # gammaP0 [dimensionless]
             0.6,                # m [dimensionless]
-            1.763,              # b0 [GPa·Å³/atom]
-            0.982,              # b1 [GPa·Å³/atom]
-            2.11,               # b2 [GPa·Å³/atom]
-            0.37,               # b3 [GPa·Å³/atom]
-            1.9,                # b4 [GPa·Å³/atom]
+            1.763 * b_scale,    # b0 [eV/atom in the source]
+            0.982 * b_scale,    # b1 [eV/atom in the source]
+            2.11 * b_scale,     # b2 [eV/atom in the source]
+            0.37 * b_scale,     # b3 [eV/atom in the source]
+            1.9 * b_scale,      # b4 [eV/atom in the source]
         ])
         self._rtpress.set_params(param_values)
 
-        # Reference-state values for energy/entropy offsets.
-        #   S0 set so that ΔS_fusion = S_liq - S_orthoen = 1.01·N·k_B =
-        #     41.99 J/(mol·K) (N = 5 atoms/fu) at the Belonoshko+05 P→0 branch
-        #     of the melting curve (1 bar, 1831 K) — this matches Stebbins+1984
-        #     calorimetry exactly. The same S0 simultaneously delivers
-        #     ΔS_fusion > +450 J/(mol·K) on the brg- and ppv-liquid branches
-        #     (dominated there by the cold offset of the RTpress reference
-        #     state, not the entropy-of-melting physics itself); no Stebbins
-        #     drift is needed here, unlike the Zhang+15 drift accepted in the
-        #     Fe Luo24 calibration.
-        #   U0 set by G-continuity at the brg-ppv-liquid triple point
-        #     (155.6751 GPa, 6167.87 K): G_liq(P₀, T₀) = G_brg(P₀, T₀).
-        self.U0 = 5987008.1955171    # J/mol  (G-continuity at brg-ppv-liq TP)
-        self.S0 = 820.3028490570698  # J/(mol·K)  (Stebbins+1984 anchor at 1 bar, 1831 K)
+        # S0: ΔS_fus(orthoen to liquid) = 41.99 J/(mol·K) at 1 bar, 1831 K
+        # (Stebbins et al. 1984). U0: G_liq = G_brg at the brg-ppv-liquid
+        # triple point (155.6751 GPa, 6167.87 K).
+        self.U0 = 3816106.5271076397  # J/mol
+        self.S0 = 446.40774494571957  # J/(mol·K)
 
         # Unit conversion factor: GPa·Å³/atom → J/kg
         # (also applies to entropy and heat capacity per-K quantities)
