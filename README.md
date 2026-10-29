@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/paleos_logo.png" alt="PALEOS logo" width="200">
+</p>
+
 # PALEOS
 
 **Planetary Assemblage Layers: Equations Of State**
