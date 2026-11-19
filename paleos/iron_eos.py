@@ -975,11 +975,9 @@ class Miozzi20:
         # ΔS on heating is positive along the α-ε boundary (otherwise the M20
         # raw absolute entropy under-predicts S at low T relative to D17 bcc
         # by up to ~7 J/(mol·K), giving downward S jumps on α→ε crossings).
-        # U0 is fixed by enforcing Gibbs-energy continuity at the fcc-hcp-liquid
-        # triple point (98.5 GPa, 3712 K): G_hcp(TP) = G_fcc(TP); since G is
-        # S0-independent, U0 is unchanged by the S0 lift.
+        # U0: Gibbs continuity with fcc at the fcc-hcp-liquid triple point (98.5 GPa, 3712 K). G carries -T S0, so re-solve U0 when S0 changes.
         self.params = {
-            'U0': 13756.087,        # J/mol  (from G-continuity at TP)
+            'U0': 7865.065,        # J/mol  (from G-continuity at TP)
             'S0': 8.0,              # J/(mol·K)  (M20 raw + 8.0 for α-ε ΔS>0)
             'V0': 6.87e-6,          # m³/mol
             'K0': 129.0e9,          # Pa
@@ -1295,9 +1293,9 @@ class Miozzi20:
         """
         Calculate specific internal energy.
         
-        E = E_cold + E_th
+        E = E_cold + E_th(V,T) - F_th(V,T0)
         
-        where E_cold is reference (BM3) potential energy and E_th is thermal energy.
+        where E_cold is the BM3 potential energy on the T0 isotherm, E_th the Debye thermal energy, and F_th(V,T0) = E_th(V,T0) - T0 S_th(V,T0), so that -(∂F/∂V)_T reproduces P = P(V,T0) + ΔP_th.
         
         Parameters
         ----------
@@ -1320,9 +1318,10 @@ class Miozzi20:
         E_cold = U0 + (9/16) * K0 * V0 * \
                  ((x**(2/3) - 1)**3 * Kp + (x**(2/3) - 1)**2 * (6 - 4*x**(2/3)))
         
-        # Thermal energy (Debye)
+        # Thermal energy (Debye), referenced to F_th(V,T0) as ΔP_th implies
         E_th = self._thermal_energy(V, T)
-        E_th_ref = self._thermal_energy(V, self.T0)
+        S_th_T0 = self._entropy(V, self.T0) * ATOMIC_MASS_FE - self.params['S0']
+        E_th_ref = self._thermal_energy(V, self.T0) - self.T0 * S_th_T0
         
         # Convert from J/mol to J/kg
         E_molar = E_cold + E_th - E_th_ref
@@ -1672,7 +1671,7 @@ class Hakim18:
         # that S stays continuous across the blend; U0 is unaffected (both
         # sides of the blend receive the same T·ΔS0 shift to U).
         self.params = {
-            'U0': 1183391.230,      # J/mol
+            'U0': 1177500.208,      # J/mol
             'S0': -44.401441,       # J/(mol·K)  (M20 raw blend-center value + 8.0)
             'V0': 4.28575e-6,       # m³/mol
             'P0': 234.4e9,          # Pa

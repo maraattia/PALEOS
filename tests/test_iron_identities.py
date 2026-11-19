@@ -28,7 +28,6 @@ def point_id(phase, P, T):
     return f"{phase}-{P / 1e9:g}GPa-{T:g}K"
 
 
-M20 = "Miozzi20 references its thermal energy to E_th(V, T0) instead of F_th(V, T0)"
 H18 = "Hakim18 alpha and internal energy disagree with its pressure"
 BLEND = "the Miozzi20 to Hakim18 blend mixes the seven quantities directly"
 LUO = "the Luo24 alpha floor departs from the alpha of the density above 2.4 TPa"
@@ -36,7 +35,6 @@ ALL = ("alpha", "maxwell", "cp", "gibbs")
 
 # point id -> (reason, tests that fail there)
 KNOWN = {
-    "solid-epsilon-50GPa-1500K": (M20, ("gibbs",)), "solid-epsilon-100GPa-2500K": (M20, ("gibbs",)),
     "solid-epsilon-250GPa-5000K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
     "solid-epsilon-292.86GPa-5868K": (BLEND, ("nabla_ad",) + ALL),
     "solid-epsilon-370GPa-4000K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
