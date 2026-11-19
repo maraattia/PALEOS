@@ -1941,8 +1941,7 @@ class Sokolova22:
 
         if phase == 'lp-cen':
             # Sokolova+22 Table 2: U0 = -1565.1 kJ/mol; no anharmonic term (a0, m blank).
-            # S0 = 0 for all three pyroxenes: one model, so their entropies meet at 0 K
-            # and the Sokolova+22 boundaries obey Clausius-Clapeyron without offsets.
+            # S0 = 0 for all three pyroxenes, the Sokolova+22 convention: their entropies meet at 0 K, and dS/dV matches the slope of each Sokolova+22 boundary within a factor of 1.7 up to 2000 K.
             self.params = {
                 'U0': -1565100.,           # J/mol  (S22 Table 2: -1565.1 kJ/mol)
                 'S0': 0.0,                 # J/(mol·K)  (Sokolova+22 convention)
@@ -1961,8 +1960,7 @@ class Sokolova22:
             }
         elif phase == 'orthoen':
             # Sokolova+22 Table 2: U0 = -1564.6 kJ/mol; a0 = 13e-6 K⁻¹, m = 1.
-            # S0 = 0 (Sokolova+22 convention); the liquid S0 is set against this phase
-            # by the Stebbins+1984 fusion entropy at 1 bar, 1831 K.
+            # S0 = 0 (Sokolova+22 convention). The liquid S0 is set against this phase by the Stebbins+1984 fusion entropy at 1 bar, 1831 K.
             self.params = {
                 'U0': -1564600.,      # J/mol  (S22 Table 2: -1564.6 kJ/mol)
                 'S0': 0.0,            # J/(mol·K)  (Sokolova+22 convention)
@@ -1981,8 +1979,7 @@ class Sokolova22:
             }
         elif phase == 'hp-cen':
             # Sokolova+22 Table 2: U0 = -1559.1 kJ/mol; no anharmonic term.
-            # S0 = 0: heating crosses P_en_hpcen from HP-CEn into OrthoEn, which the
-            # unshifted model already gives the higher entropy.
+            # S0 = 0: heating crosses P_en_hpcen from HP-CEn into OrthoEn, to which the unshifted model already gives the higher entropy.
             self.params = {
                 'U0': -1559100.,           # J/mol  (S22 Table 2: -1559.1 kJ/mol)
                 'S0': 0.0,                 # J/(mol·K)  (Sokolova+22 convention)
@@ -3260,6 +3257,8 @@ def P_en_hpcen(T: float) -> float:
     Emanates from the pyroxene triple point toward higher T. At fixed
     P above the triple point, this gives the high-T boundary between
     HP-CEn (below, i.e. lower T) and OrthoEn (above, i.e. higher T).
+
+    Sokolova et al. (2022) computed the phase relations up to 12 GPa and 2000 K, so above 2000 K this line is an extrapolation. There the Gibbs energies of the Sokolova et al. (2022) EoS place the OrthoEn ↔ HP-CEn equilibrium at higher pressure than the line, by about 0.8 GPa at 2500 K and 2 GPa near 3070 K, where the line meets the melting curve at 10.65 GPa. The HP-CEn field that reaches the solidus between 10.65 and 12 GPa is a product of this extrapolation.
     
     Parameters
     ----------
