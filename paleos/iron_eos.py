@@ -2679,7 +2679,9 @@ class Luo24:
     
     where:
     - P_cold(V): Birch-Murnaghan 3rd order cold pressure
-    - P_th(V,T) = (T - T_0)/1000 × [a + b(V_0/V) + c(V_0/V)^2]
+    - P_th(V,T) = (T - T_0) β(V), with β(V) = [a + b(V_0/V) + c(V_0/V)^2]/1000
+
+    Beyond the calibration edge (V < V_e, where P_cold(V_e) = 1.3 TPa) the fitted β changes sign at V_0/V = 4.58. There γ = β V / C_V takes the Al'tshuler form γ_∞ + (γ_e - γ_∞)(V/V_e)^k, matched in value and slope to the fit at V_e, with γ_∞ = 0.827 from Hakim18. P, K_T, S, U, and α all derive from this β.
     
     All methods take pressure P [Pa] and temperature T [K] as inputs and
     return quantities in SI units.
@@ -2749,6 +2751,14 @@ class Luo24:
         # Heat capacity in Dulong-Petit limit for liquid
         # C_V = 3nR per mole
         self.Cv_molar = 3 * self.params['n'] * R_GAS  # J/(mol·K)
+
+        # Al'tshuler-form γ extrapolation beyond the 1.3 TPa calibration edge
+        self.gamma_inf = 0.827  # Hakim18 hcp γ_∞
+        self.V_edge = brentq(lambda V: self._cold_pressure(V) - 1.3e12, 0.05 * V0_molar, V0_molar, xtol=1e-20)
+        beta_e, dbeta_e = self._beta_fit(self.V_edge)
+        self.gamma_edge = beta_e * self.V_edge / self.Cv_molar
+        q_edge = 1.0 + self.V_edge * dbeta_e / beta_e  # dlnγ/dlnV
+        self.k_tail = q_edge * self.gamma_edge / (self.gamma_edge - self.gamma_inf)
     
     # =========================================================================
     # Helper functions for EoS components
@@ -2787,7 +2797,7 @@ class Luo24:
         """
         Calculate thermal pressure contribution.
         
-        P_th = (T - T_0)/1000 [a + b(V_0/V) + c(V_0/V)^2]
+        P_th = (T - T_0) β(V)
         
         Parameters
         ----------
@@ -2801,23 +2811,14 @@ class Luo24:
         float
             Thermal pressure [Pa]
         """
-        V0 = self.params['V0']
-        a = self.params['a']
-        b = self.params['b']
-        c = self.params['c']
-        
-        x = V0 / V  # compression ratio
-        
-        # Polynomial in compression ratio
-        poly = a + b * x + c * x**2
-        
-        return (T - self.T0) / 1000.0 * poly
+        return (T - self.T0) * self._thermal_pressure_coeff(V)
     
     def _thermal_pressure_coeff(self, V: float) -> float:
         """
         Calculate coefficient of thermal pressure: (∂P_th/∂T)_V.
         
-        (∂P_th/∂T)_V = [a + b(V_0/V) + c(V_0/V)^2] / 1000
+        β(V) = (∂P_th/∂T)_V = [a + b(V_0/V) + c(V_0/V)^2] / 1000 for V >= V_e,
+        γ(V) C_V / V on the Al'tshuler-form extrapolation below V_e
         
         Parameters
         ----------
@@ -2829,14 +2830,36 @@ class Luo24:
         float
             Thermal pressure coefficient [Pa/K]
         """
-        V0 = self.params['V0']
-        a = self.params['a']
-        b = self.params['b']
-        c = self.params['c']
-        
+        return self._beta_and_derivative(V)[0]
+
+    def _beta_fit(self, V: float) -> tuple:
+        """Fitted β(V) [Pa/K] and dβ/dV [Pa/(K·m³/mol)]."""
+        V0, a, b, c = (self.params[k] for k in ('V0', 'a', 'b', 'c'))
         x = V0 / V
-        
-        return (a + b * x + c * x**2) / 1000.0
+        return (a + b * x + c * x**2) / 1000.0, -(x / V) * (b + 2 * c * x) / 1000.0
+
+    def _gamma_tail(self, V: float) -> float:
+        """Grüneisen parameter of the extrapolation below V_e."""
+        return self.gamma_inf + (self.gamma_edge - self.gamma_inf) * (V / self.V_edge)**self.k_tail
+
+    def _beta_and_derivative(self, V: float) -> tuple:
+        """β(V) [Pa/K] and dβ/dV, from the fit above V_e and from γ(V) below."""
+        if V >= self.V_edge:
+            return self._beta_fit(V)
+        gamma = self._gamma_tail(V)
+        dgamma_dlnV = self.k_tail * (gamma - self.gamma_inf)
+        Cv = self.Cv_molar
+        return gamma * Cv / V, Cv * (dgamma_dlnV - gamma) / V**2
+
+    def _thermal_entropy(self, V: float) -> float:
+        """S_th(V) = ∫ β dV from V_0 [J/(mol·K)], the volume part of S."""
+        V0, a, b, c = (self.params[k] for k in ('V0', 'a', 'b', 'c'))
+        fit = lambda v: (a * (v - V0) + b * V0 * np.log(v / V0) + c * V0 * (1 - V0 / v)) / 1000.0
+        if V >= self.V_edge:
+            return fit(V)
+        r = V / self.V_edge
+        return fit(self.V_edge) + self.Cv_molar * (
+            self.gamma_inf * np.log(r) + (self.gamma_edge - self.gamma_inf) / self.k_tail * (r**self.k_tail - 1.0))
     
     def _total_pressure(self, V: float, T: float) -> float:
         """
@@ -2893,13 +2916,13 @@ class Luo24:
             return self._total_pressure(V, T) - P
         
         try:
-            V = brentq(pressure_residual, V_min, V_max, xtol=1e-12)
+            V = brentq(pressure_residual, V_min, V_max, xtol=1e-12 * V0)
             return V
         except ValueError:
             try:
-                V_min *= 0.4
+                V_min = 0.03 * V0  # down to 100 TPa for the metastable liquid
                 V_max = V0
-                V = brentq(pressure_residual, V_min, V_max, xtol=1e-12)
+                V = brentq(pressure_residual, V_min, V_max, xtol=1e-12 * V0)
                 return V 
             except ValueError:
                 raise RuntimeError(
@@ -2922,7 +2945,7 @@ class Luo24:
         - f2' = (1/2)(K'_0 - 4)x^(-1/3)
         
         For thermal:
-        ∂P_th/∂V = -(x/V) (T - T0)/1000 [b + 2 c x]
+        ∂P_th/∂V = (T - T0) dβ/dV
         
         Parameters
         ----------
@@ -2939,9 +2962,6 @@ class Luo24:
         V0 = self.params['V0']
         K0 = self.params['K0']
         K0_prime = self.params['K0_prime']
-        a = self.params['a']
-        b = self.params['b']
-        c = self.params['c']
         
         x = V0 / V
         
@@ -2954,7 +2974,7 @@ class Luo24:
         dP_cold_dV = -(x / V) * (3/2) * K0 * (f1_prime * f2 + f1 * f2_prime)
         
         # Thermal pressure derivative
-        dP_th_dV = ((T - self.T0) / 1000.0) * (-x / V) * (b + 2 * c * x)
+        dP_th_dV = (T - self.T0) * self._beta_and_derivative(V)[1]
         
         # Total
         dP_dV = dP_cold_dV + dP_th_dV
@@ -2965,13 +2985,7 @@ class Luo24:
         """
         Calculate volumetric thermal expansion coefficient.
         
-        α = (∂P/∂T)_V / K_T
-        
-        A softplus floor is applied to ensure α ≥ α_min smoothly:
-        α_smooth = α_min × (1 + softplus((α_raw - α_min) / α_min))
-        
-        This avoids discontinuities that would arise from a hard cutoff
-        while ensuring thermal expansion remains positive.
+        α = (∂P/∂T)_V / K_T = β(V) / K_T
         
         Parameters
         ----------
@@ -2985,31 +2999,7 @@ class Luo24:
         float
             Thermal expansion coefficient [K⁻¹]
         """
-        dP_dT = self._thermal_pressure_coeff(V)
-        K_T = self._isothermal_bulk_modulus(V, T)
-        
-        if abs(K_T) < 1e-6:
-            return 1e-7  # Return alpha_min
-        
-        alpha_raw = dP_dT / K_T
-        
-        # Softplus floor to ensure α ≥ α_min smoothly
-        # Using scaled softplus: α = α_min × (1 + softplus((α_raw - α_min) / α_min))
-        # This ensures: α → α_raw when α_raw >> α_min
-        #               α → α_min when α_raw << α_min
-        alpha_min = 1e-7
-        
-        x = (alpha_raw - alpha_min) / alpha_min
-        
-        # Numerical stability
-        if x > 30:
-            # softplus(x) ≈ x for large x
-            return alpha_raw
-        elif x < -30:
-            # softplus(x) ≈ 0 for large negative x
-            return alpha_min
-        else:
-            return alpha_min * (1 + np.log(1 + np.exp(x)))
+        return self._thermal_pressure_coeff(V) / self._isothermal_bulk_modulus(V, T)
     
     def _isochoric_heat_capacity(self, V: float, T: float) -> float:
         """
@@ -3038,7 +3028,7 @@ class Luo24:
         Calculate specific entropy.
         
         For constant C_V (Dulong-Petit limit) + thermal part:
-        S = C_V × ln(T/T_0) + (a(V - V_0) + b V_0 ln(V/V_0) + c V_0 (1 - V_0/V))/1000
+        S = S_0 + C_V × ln(T/T_0) + S_th(V), with S_th(V) = ∫ β dV from V_0
         
         Parameters
         ----------
@@ -3053,10 +3043,6 @@ class Luo24:
             Specific entropy [J/(kg·K)]
         """
         S0 = self.params['S0']
-        V0 = self.params['V0']
-        a = self.params['a']
-        b = self.params['b']
-        c = self.params['c']
 
         if T < 1e-6:
             return 0.0
@@ -3065,9 +3051,8 @@ class Luo24:
         # S_DP = ∫(C_V/T)dT from T0 to T = C_V × ln(T/T0)
         S_DP = self.Cv_molar * np.log(T / self.T0)
 
-        # Thermal entropy (from Helmholtz free energy)
-        # S_th = -∂F_th/∂T and F_th = -∫P_th dV
-        S_th = (a*(V - V0) + b*V0*np.log(V/V0) + c*V0*(1 - V0/V))/1000
+        # Thermal entropy: S_th = -∂F_th/∂T with F_th = -(T - T0) ∫β dV
+        S_th = self._thermal_entropy(V)
 
         # Total
         S_molar = S_th + S_DP + S0
@@ -3082,7 +3067,7 @@ class Luo24:
         
         where:
         - E_cold: BM3 potential energy (integrated from V0 to V)
-        - E_th = T_0/1000 (a(V - V_0) + b V_0 ln(V/V_0) + c V_0 (1 - V_0/V))
+        - E_th = T_0 S_th(V)
         - E_DP = C_V × (T - T_0) consistent with Dulong-Petit
         
         For BM3, the cold energy is:
@@ -3106,9 +3091,6 @@ class Luo24:
         V0 = self.params['V0']
         K0 = self.params['K0']
         K0_prime = self.params['K0_prime']
-        a = self.params['a']
-        b = self.params['b']
-        c = self.params['c']
         
         x = V0 / V
         f = x**(2/3) - 1  # Eulerian strain
@@ -3116,9 +3098,8 @@ class Luo24:
         # BM3 cold energy
         E_cold = U0 + (9/16) * K0 * V0 * (f**3 * K0_prime + f**2 * (6 - 4 * x**(2/3)))
 
-        # Thermal energy
-        # E_th = F_th + T S_th 
-        E_th = (a*(V - V0) + b*V0*np.log(V/V0) + c*V0*(1 - V0/V))*self.T0/1000
+        # Thermal energy: E_th = F_th + T S_th = T0 S_th(V)
+        E_th = self.T0 * self._thermal_entropy(V)
         
         # Dulong-Petit energy (we force this term to have an explicit T dependence)
         E_DP = self.Cv_molar * (T - self.T0)

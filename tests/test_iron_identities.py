@@ -20,7 +20,7 @@ POINTS = [
     ("solid-epsilon", 500e9, 5000.0), ("solid-epsilon", 3e12, 5000.0),
     ("liquid", 10e9, 3000.0), ("liquid", 100e9, 5000.0), ("liquid", 1e12, 12000.0),
     ("liquid", 3e12, 25000.0), ("liquid", 5e12, 30000.0),
-    ("liquid", 3e12, 5000.0), ("liquid", 5e12, 5000.0), ("liquid", 10e12, 5000.0),
+    ("liquid", 3e12, 5000.0), ("liquid", 5e12, 5000.0), ("liquid", 10e12, 5000.0), ("liquid", 50e12, 1000.0),
 ]
 
 
@@ -29,16 +29,12 @@ def point_id(phase, P, T):
 
 
 BLEND = "the Miozzi20 to Hakim18 blend mixes the seven quantities directly"
-LUO = "the Luo24 alpha floor departs from the alpha of the density above 2.4 TPa"
 
 # point id -> (reason, tests that fail there)
 KNOWN = {
     "solid-epsilon-250GPa-5000K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
     "solid-epsilon-292.86GPa-5868K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
     "solid-epsilon-370GPa-4000K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
-    "liquid-3000GPa-25000K": (LUO, ("alpha", "maxwell")), "liquid-5000GPa-30000K": (LUO, ("alpha", "maxwell", "cp")),
-    "liquid-3000GPa-5000K": (LUO, ("alpha", "maxwell")), "liquid-5000GPa-5000K": (LUO, ("alpha", "maxwell", "cp")),
-    "liquid-10000GPa-5000K": (LUO, ("alpha", "maxwell", "cp")),
 }
 
 
@@ -77,20 +73,20 @@ def test_adiabatic_gradient_matches_alpha_rho_cp(phase, P, T, iron_phases):
 def test_alpha_matches_density(phase, P, T, iron_phases):
     eos = iron_phases[phase]
     alpha_rho = -d_dT(lambda p, t: np.log(eos.density(p, t)), P, T)
-    assert eos.thermal_expansion(P, T) == pytest.approx(alpha_rho, rel=1e-4, abs=0.0)
+    assert eos.thermal_expansion(P, T) == pytest.approx(alpha_rho, rel=1e-5, abs=0.0)
 
 
 @pytest.mark.parametrize("phase, P, T", cases("maxwell"))
 def test_maxwell_relation_with_tabulated_alpha(phase, P, T, iron_phases):
     eos = iron_phases[phase]
     dsdP = d_dP(eos.specific_entropy, P, T)
-    assert dsdP == pytest.approx(-eos.thermal_expansion(P, T) / eos.density(P, T), rel=1e-4, abs=0.0)
+    assert dsdP == pytest.approx(-eos.thermal_expansion(P, T) / eos.density(P, T), rel=1e-5, abs=0.0)
 
 
 @pytest.mark.parametrize("phase, P, T", cases("cp"))
 def test_cp_matches_entropy(phase, P, T, iron_phases):
     eos = iron_phases[phase]
-    assert T * d_dT(eos.specific_entropy, P, T) == pytest.approx(eos.isobaric_heat_capacity(P, T), rel=1e-4, abs=0.0)
+    assert T * d_dT(eos.specific_entropy, P, T) == pytest.approx(eos.isobaric_heat_capacity(P, T), rel=1e-5, abs=0.0)
 
 
 @pytest.mark.parametrize("phase, P, T", cases("gibbs"))
@@ -101,3 +97,22 @@ def test_gibbs_derivatives_match_volume_and_entropy(phase, P, T, iron_phases):
     g = lambda p, t: gibbs(eos, p, t)
     assert d_dP(g, P, T) == pytest.approx(V, rel=1e-6, abs=0.0), "dG/dP != V"
     assert abs(d_dT(g, P, T, h=1e-4) + S) * M < 1e-3, "dG/dT != -S"
+
+
+def test_liquid_extrapolation_joins_the_fit_smoothly():
+    """beta, its volume derivative, the entropy, and the energy are continuous at the 1.3 TPa calibration edge."""
+    liquid = fe.Luo24()
+    V_above, V_below = liquid.V_edge * (1 + 1e-10), liquid.V_edge * (1 - 1e-10)
+    assert liquid._beta_and_derivative(V_below) == pytest.approx(liquid._beta_and_derivative(V_above), rel=1e-6, abs=0.0)
+    assert liquid._thermal_entropy(V_below) == pytest.approx(liquid._thermal_entropy(V_above), abs=1e-6)
+    for T in (3000.0, 20000.0):
+        u_above, u_below = liquid._internal_energy(V_above, T), liquid._internal_energy(V_below, T)
+        assert u_below == pytest.approx(u_above, rel=1e-9, abs=0.0)
+
+
+def test_liquid_alpha_is_positive_over_the_table_box():
+    """Two-phase tables need the liquid at every (P, T) of the iron tables, also below melting."""
+    liquid = fe.Luo24()
+    for P in np.logspace(5, 14, 19):
+        for T in np.logspace(np.log10(300.0), 5, 9):
+            assert liquid.thermal_expansion(P, T) > 0.0, (P, T)
