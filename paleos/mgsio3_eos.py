@@ -2171,10 +2171,10 @@ class Sokolova22:
         """
         Calculate cold compression energy by integrating Kunc pressure.
 
-            E_cold(V) = -∫_{V₀}^{V} P_cold(V') dV'
+            E_cold(V) = U₀ - ∫_{V₀}^{V} P_cold(V') dV'
 
         This is the potential part of the Helmholtz free energy at the
-        reference isotherm, positive for compression (V < V₀).
+        reference isotherm, rising above U₀ on compression (V < V₀).
 
         Parameters
         ----------
@@ -2191,7 +2191,7 @@ class Sokolova22:
         V0 = self.params['V0']
 
         if abs(V - V0) / V0 < 1e-12:
-            return 0.0
+            return self.params['U0']
 
         result, _ = quad(self._cold_pressure, V0, V)
         return -result + self.params['U0']

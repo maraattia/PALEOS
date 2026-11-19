@@ -152,3 +152,10 @@ def test_clapeyron_on_melting_curve(mgsio3_phases):
         dTdP = (mg.T_melt_MgSiO3(P * 1.001) - mg.T_melt_MgSiO3(P * 0.999)) / (0.002 * P)
         ratio = (dS / dV) * dTdP
         assert 1.0 / 2.5 < ratio < 2.5, f"melting: dS/dV is {ratio:.2f} times dP/dT at {P:.4e} Pa"
+
+
+@pytest.mark.parametrize("phase", ["lp-cen", "orthoen", "hp-cen"])
+def test_pyroxene_cold_energy_is_continuous_at_v0(phase):
+    eos = mg.Sokolova22(phase)
+    V0 = eos.params["V0"]
+    assert eos._cold_energy(V0) == pytest.approx(eos._cold_energy(V0 * (1.0 + 1e-9)), abs=1e-3)
