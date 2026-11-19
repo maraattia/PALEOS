@@ -3258,7 +3258,7 @@ def P_en_hpcen(T: float) -> float:
     P above the triple point, this gives the high-T boundary between
     HP-CEn (below, i.e. lower T) and OrthoEn (above, i.e. higher T).
 
-    Sokolova et al. (2022) computed the phase relations up to 12 GPa and 2000 K, so above 2000 K this line is an extrapolation. There the Gibbs energies of the Sokolova et al. (2022) EoS place the OrthoEn ↔ HP-CEn equilibrium at higher pressure than the line, by about 0.8 GPa at 2500 K and 2 GPa near 3070 K, where the line meets the melting curve at 10.65 GPa. The HP-CEn field that reaches the solidus between 10.65 and 12 GPa is a product of this extrapolation.
+    Sokolova et al. (2022) computed the phase relations up to 12 GPa and 2000 K, so above 2000 K this line is an extrapolation. There the Gibbs energies of the Sokolova et al. (2022) EoS place the OrthoEn ↔ HP-CEn equilibrium at higher pressure than the line, by about 0.8 GPa at 2500 K and 2 GPa near 3070 K, where the line meets the melting curve at 10.65 GPa. The HP-CEn field on the solidus between 10.65 and 12 GPa follows from the simplified low-pressure phase diagram, in which the pyroxene series stands in for olivine and its high-pressure polymorphs and brg takes over at an empirical 12 GPa cutoff.
     
     Parameters
     ----------
