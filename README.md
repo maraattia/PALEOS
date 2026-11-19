@@ -8,6 +8,8 @@
 
 An open-source Python package for computing thermodynamic properties of planetary materials under extreme pressure–temperature conditions relevant to planetary interiors.
 
+If you use PALEOS or its tables, please cite: Attia, M., Lichtenberg, T., Jungová, E., & Sastre, M. 2026, "PALEOS: Multiphase equations of state and mass–radius relations for exoplanet interiors", A&A, 713, A225, [doi:10.1051/0004-6361/202660790](https://doi.org/10.1051/0004-6361/202660790) ([ADS](https://ui.adsabs.harvard.edu/abs/2026A%26A...713A.225A/abstract)).
+
 > **Just want the data?** Precomputed tables are available on Zenodo—no installation required:
 >
 > | **EoS lookup tables** (Fe, MgSiO₃, H₂O) | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19000315.svg)](https://doi.org/10.5281/zenodo.19000315) |
