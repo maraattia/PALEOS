@@ -127,8 +127,6 @@ def test_gibbs_continuity_at_triple_point(iron_phases):
     assert max(G) - min(G) < 1e-2, f"Gibbs spread {max(G) - min(G):.3e} J/mol"
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="Hakim18 U0 and S0 no longer match Miozzi20 at the blend center")
 def test_hakim18_matches_miozzi20_at_blend_center(iron_phases):
     hcp = iron_phases["solid-epsilon"]
     P = hcp.P_center

@@ -1665,14 +1665,12 @@ class Hakim18:
         
         # Cold compression parameters (Holzapfel equation, Section 3.1)
         # Thermal model parameters from Bouchet et al. (2013), Table F.7
-        # U0/S0 set for continuity with the shifted Miozzi+20 EoS at the center
-        # of the 310 ± 100 GPa blend zone, at the γ-ε phase boundary temperature
-        # T_γε(310 GPa) ≈ 2502 K.  S0 shifts in lockstep with M20 (+8.0) so
-        # that S stays continuous across the blend; U0 is unaffected (both
-        # sides of the blend receive the same T·ΔS0 shift to U).
+        # U0 and S0 make u and s equal to those of Miozzi20 (with its +8.0 S0
+        # lift) at the center of the 310 ± 100 GPa blend, on the γ-ε line
+        # extrapolated to 310 GPa, T_γε = 2306.76 K.
         self.params = {
-            'U0': 1177500.208,      # J/mol
-            'S0': -44.401441,       # J/(mol·K)  (M20 raw blend-center value + 8.0)
+            'U0': 1182570.325,      # J/mol  (u continuity at the blend center)
+            'S0': -43.889541,       # J/(mol·K)  (s continuity at the blend center)
             'V0': 4.28575e-6,       # m³/mol
             'P0': 234.4e9,          # Pa
             'KT0': 1145.7e9,        # Pa
@@ -1776,7 +1774,7 @@ class Hakim18:
         Calculate q parameter (volume derivative of Grüneisen parameter).
         
         q = b x^b (γ_0 - γ_∞) / γ
-        where x = V/V_0
+        where x is the adjusted volume ratio that γ itself uses
         
         Parameters
         ----------
@@ -1788,7 +1786,7 @@ class Hakim18:
         float
             q parameter (dimensionless)
         """
-        x = V / self.params['V0']
+        x = self._adjusted_x(V)
         gamma = self._gruneisen_parameter(V)
         gamma_inf = self.params['gamma_inf']
         gamma0 = self.params['gamma0']
@@ -2193,12 +2191,12 @@ class Hakim18:
         
         # Cold energy: E_cold = U_0 - P_0 V - 3 K_T,0 V_0 I(x)
         # where I(x) = ∫_1^x f(x') dx'
-        # and f(x) = x^(-5/3) (1 - x^(1/3)) (1 - c_2 x^(1/3) (1 - x^(1/3))) 
+        # and f(x) = x^(-5/3) (1 - x^(1/3)) (1 + c_2 x^(1/3) (1 - x^(1/3))) 
         #            exp(c_0 (1 - x^(1/3)))
         
         def f_integrand(x_prime):
             x_third = x_prime**(1/3)
-            return (x_third**(-5) * (1 - x_third) * (1 - c2 * x_third * (1 - x_third)) * 
+            return (x_third**(-5) * (1 - x_third) * (1 + c2 * x_third * (1 - x_third)) * 
                     np.exp(c0 * (1 - x_third)))
         
         if abs(x - 1.0) < 1e-10:
