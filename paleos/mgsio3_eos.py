@@ -55,10 +55,9 @@ _M_O = 15.999
 # MgSiO₃ base molar mass [kg/mol]
 _M_MgSiO3 = (_M_Mg + _M_Si + 3 * _M_O) * 1e-3  # 0.100387 kg/mol
 
-# Common shift of the Sokolova+22 pyroxene U0 onto the brg and liquid energy zero (#13): G_orthoen = G_liq
-# at 1 bar, 1831 K, the Stebbins+1984 point that also sets the liquid S0. It leaves a step of about
-# -170 kJ/mol in U from HP-CEn to brg across the empirical 12 GPa line.
-_U0_PYROXENE_SHIFT = 1718258.0250636367  # J/mol
+# One shift common to the three Sokolova+22 pyroxene U0 sets G_orthoen = G_liq at 1 bar, 1831 K, the Stebbins+1984 point that also fixes the liquid S0 (#13).
+# The liquid and brg Gibbs energies disagree below the brg-ppv-liquid triple point, so brg lies 120 to 220 kJ/mol below the pyroxenes from 1 bar to 12 GPa.
+_U0_PYROXENE_SHIFT = 1724978.8748446458  # J/mol
 
 
 # =============================================================================
@@ -719,7 +718,7 @@ class Wolf15:
         """
         Calculate molar internal energy for a single end-member.
         
-        E = E_cold(V) + E_th(V,T) - E_th(V,T_0) + U_0
+        E = E_cold(V) + E_th(V,T) - F_th(V,T_0) + U_0,  F_th(V,T_0) = E_th(V,T_0) - T_0 S_th(V,T_0)
         
         For the Vinet cold energy:
         E_cold = 9 K_0 V_0 [1 - (1 - ν(1-y)) exp(ν(1-y))] / ν²
@@ -751,11 +750,12 @@ class Wolf15:
         
         E_cold = 9 * K0 * V0 * (1 - (1 - nu * (1 - y)) * np.exp(nu * (1 - y))) / nu**2
         
-        # Thermal energy (Debye)
+        # Thermal energy (Debye), referenced to the Helmholtz energy at T0 so that U matches P and S.
         E_th = self._thermal_energy(V, T, params)
-        E_th_ref = self._thermal_energy(V, self.T0, params)
+        F_th_ref = (self._thermal_energy(V, self.T0, params)
+                    - self.T0 * (self._entropy_single(V, self.T0, params) - params['S0']))
         
-        return U0 + E_cold + (E_th - E_th_ref)
+        return U0 + E_cold + (E_th - F_th_ref)
     
     # =========================================================================
     # Mixing helpers (blend end-member properties at constant V, T)
@@ -1165,7 +1165,7 @@ class Sakai16:
         V0_cell = 164.22e-30  # m³/cell
 
         self.params = {
-            'U0': 11926.53546344908,                            # J/mol  (G-continuity at brg-ppv-liq TP)
+            'U0': 12021.046933063772,                            # J/mol  (G-continuity at brg-ppv-liq TP)
             'S0': -0.6983071971965842,                          # J/(mol·K)  (ΔS_ppv→brg > 1 J/(mol·K) on O&O boundary)
             'V0': V0_cell * N_AVOGADRO / self.Z,                # m³/mol
             'K0': 205.4e9,                                      # Pa
@@ -1665,7 +1665,7 @@ class Sakai16:
         """
         Calculate molar internal energy.
         
-        E = E_cold(V) + E_th(V,T) - E_th(V,T_0) + U_0
+        E = E_cold(V) + E_th(V,T) - F_th(V,T_0) + U_0,  F_th(V,T_0) = E_th(V,T_0) - T_0 S_th(V,T_0)
         
         where E_cold is obtained from the analytical integral of the Keane
         pressure (see _cold_energy).
@@ -1686,9 +1686,11 @@ class Sakai16:
         
         E_cold = self._cold_energy(V)
         E_th = self._thermal_energy(V, T)
-        E_th_ref = self._thermal_energy(V, self.T0)
+        # Thermal energy referenced to the Helmholtz energy at T0, so that U matches P and S.
+        F_th_ref = (self._thermal_energy(V, self.T0)
+                    - self.T0 * (self._entropy_molar(V, self.T0) - self.params['S0']))
         
-        return U0 + E_cold + (E_th - E_th_ref)
+        return U0 + E_cold + (E_th - F_th_ref)
     
     # =========================================================================
     # Public interface
@@ -1984,7 +1986,7 @@ class Sokolova22:
             }
         elif phase == 'hp-cen':
             # Sokolova+22 Table 2: U0 = -1559.1 kJ/mol; no anharmonic term.
-            # S0 = 0: heating crosses P_en_hpcen from HP-CEn into OrthoEn, to which the unshifted model already gives the higher entropy.
+            # S0 = 0: heating crosses P_en_hpcen from HP-CEn into OrthoEn, to which the model with S0 = 0 already gives the higher entropy.
             self.params = {
                 'U0': -1559100. + _U0_PYROXENE_SHIFT,  # J/mol  (S22 Table 2: -1559.1 kJ/mol)
                 'S0': 0.0,                 # J/(mol·K)  (Sokolova+22 convention)
@@ -2176,10 +2178,11 @@ class Sokolova22:
         """
         Calculate cold compression energy by integrating Kunc pressure.
 
-            E_cold(V) = U₀ - ∫_{V₀}^{V} P_cold(V') dV'
+            E_cold(V) = -∫_{V₀}^{V} P_cold(V') dV'
 
         This is the potential part of the Helmholtz free energy at the
-        reference isotherm, rising above U₀ on compression (V < V₀).
+        reference isotherm, positive for compression (V < V₀). The
+        reference energy U₀ is added in _internal_energy.
 
         Parameters
         ----------
@@ -2196,10 +2199,10 @@ class Sokolova22:
         V0 = self.params['V0']
 
         if abs(V - V0) / V0 < 1e-12:
-            return self.params['U0']
+            return 0.0
 
         result, _ = quad(self._cold_pressure, V0, V)
-        return -result + self.params['U0']
+        return -result
 
     def _thermal_energy(self, V: float, T: float) -> float:
         """
@@ -2449,10 +2452,11 @@ class Sokolova22:
         """
         Calculate molar internal energy.
 
-            U = E_cold(V) + E_th(V,T) + E_anh(V,T)
+            U = U₀ + E_cold(V) + E_th(V,T) + E_anh(V,T)
 
         where E_cold = -∫_{V₀}^{V} P_cold dV' is the cold compression
-        energy from the Kunc reference isotherm.
+        energy from the Kunc reference isotherm and U₀ is the Sokolova+22
+        value plus the common pyroxene shift.
 
         Parameters
         ----------
@@ -2466,7 +2470,8 @@ class Sokolova22:
         float
             Internal energy [J/mol]
         """
-        return (self._cold_energy(V)
+        return (self.params['U0']
+                + self._cold_energy(V)
                 + self._thermal_energy(V, T)
                 + self._anharmonic_energy(V, T))
 
@@ -2916,7 +2921,7 @@ class Wolf18:
         # S0: ΔS_fus(orthoen to liquid) = 41.99 J/(mol·K) at 1 bar, 1831 K
         # (Stebbins et al. 1984). U0: G_liq = G_brg at the brg-ppv-liquid
         # triple point (155.6751 GPa, 6167.87 K).
-        self.U0 = 3816106.5271076397  # J/mol
+        self.U0 = 3822827.3768886486  # J/mol
         self.S0 = 446.40774494571957  # J/(mol·K)
 
         # Unit conversion factor: GPa·Å³/atom → J/kg
