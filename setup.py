@@ -12,4 +12,5 @@ setup(
         "sympy>=1.14",
         "RTpress @ git+https://gitlab.com/aswolf/rtpress.git@master",
     ],
+    extras_require={"tests": ["pytest"]},
 )
