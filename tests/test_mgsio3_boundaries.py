@@ -1,7 +1,7 @@
 """
 Entropy and Gibbs energy across the MgSiO3 phase boundaries.
 
-The reference constants (U0, S0) are set so that entropy rises on heating across every solid boundary and along the melting curve, and so that the Clausius-Clapeyron ratio dS/dV agrees with the slope of the three pyroxene lines and the brg-ppv line. The analytic boundaries and the EoS of each phase come from separate fits, so the Clapeyron test allows a factor of 1.7 either way, and 2.5 on the OrthoEn to HP-CEn line above 2000 K, where Sokolova et al. (2022) did not compute it. The orthoenstatite melting entropy must match Stebbins et al. (1984), and brg, ppv, and liquid must share one Gibbs energy at their triple point. The expected failures record known inconsistencies that are not fixed yet.
+The reference constants (U0, S0) are set so that entropy rises on heating across every solid boundary and along the melting curve, and so that the Clausius-Clapeyron ratio dS/dV agrees with the slope of the three pyroxene lines and the brg-ppv line. The analytic boundaries and the EoS of each phase come from separate fits, so the Clapeyron test allows a factor of 1.7 either way, and 2.5 on the OrthoEn to HP-CEn line above 2000 K, where Sokolova et al. (2022) did not compute it. The orthoenstatite melting entropy must match Stebbins et al. (1984), brg, ppv, and liquid must share one Gibbs energy at their triple point, and the pyroxene energies are tied to the liquid by G_liq = G_en at the Stebbins point. The expected failures record known inconsistencies that are not fixed yet.
 """
 
 from dataclasses import dataclass
@@ -125,11 +125,51 @@ def test_gibbs_continuity_at_deep_triple_point(mgsio3_phases):
     assert max(G) - min(G) < 1e-2, f"Gibbs spread {max(G) - min(G):.3e} J/mol"
 
 
-@pytest.mark.xfail(strict=True, reason="pyroxene energies are not tied to the liquid energy zero (#13)")
 def test_gibbs_continuity_at_one_bar_melting(mgsio3_phases):
+    """The common pyroxene U0 shift sets G_liq = G_en at the Stebbins et al. (1984) point."""
     P, T = 1e5, 1831.0
     dG = molar_gibbs(mgsio3_phases["liquid"], P, T) - molar_gibbs(mgsio3_phases["solid-en"], P, T)
     assert abs(dG) < 1.0, f"G_liq - G_en = {dG:.1f} J/mol at 1 bar, 1831 K"
+
+
+def test_fusion_enthalpy_at_one_bar(mgsio3_phases):
+    """Read from u, the 1 bar fusion enthalpy of orthoenstatite equals T dS."""
+    P, T = 1e5, 1831.0
+    liq, en = mgsio3_phases["liquid"], mgsio3_phases["solid-en"]
+    dH = (molar_gibbs(liq, P, T) + T * molar_entropy(liq, P, T)
+          - molar_gibbs(en, P, T) - T * molar_entropy(en, P, T))
+    assert dH == pytest.approx(T * 41.99, rel=2e-3)
+
+
+PYROXENE_BOUNDARIES = [b for b in SOLID_BOUNDARIES if b.name in ("lpcen-en", "lpcen-hpcen", "hpcen-en")]
+
+
+@pytest.mark.parametrize("b", PYROXENE_BOUNDARIES, ids=[b.name for b in PYROXENE_BOUNDARIES])
+def test_gibbs_continuity_across_pyroxene_boundaries(b, mgsio3_phases):
+    """The pyroxenes share one shifted energy zero, so G matches on their boundaries up to 2000 K."""
+    lo, hi = mgsio3_phases[b.low], mgsio3_phases[b.high]
+    for T in b.temperatures(25):
+        P = b.P_of_T(T)
+        dG = molar_gibbs(hi, P, T) - molar_gibbs(lo, P, T)
+        assert abs(dG) < 500.0, f"{b.name}: G jumps by {dG:.0f} J/mol at {P:.4e} Pa, {T:.1f} K"
+
+
+@pytest.mark.xfail(strict=True, reason="the U0 shift is anchored on 1 bar melting, leaving about -170 kJ/mol at 12 GPa (#13)")
+def test_energy_continuity_on_hpcen_brg_line(mgsio3_phases):
+    hp, brg = mgsio3_phases["solid-hpcen"], mgsio3_phases["solid-brg"]
+    for T in np.linspace(300.0, 3000.0, 10):
+        dU = (brg.specific_internal_energy(mg._P_HPCEN_BRG, T)
+              - hp.specific_internal_energy(mg._P_HPCEN_BRG, T)) * M
+        assert abs(dU) < 1e4, f"U(brg) - U(hpcen) = {dU / 1e3:.1f} kJ/mol at 12 GPa, {T:.0f} K"
+
+
+@pytest.mark.xfail(strict=True, reason="the Fei et al. (2021) melting curve is not the G_liq = G_brg line of the EoS (#13)")
+def test_gibbs_continuity_on_brg_melting_curve(mgsio3_phases):
+    liquid, brg = mgsio3_phases["liquid"], mgsio3_phases["solid-brg"]
+    for P in np.logspace(np.log10(13e9), np.log10(150e9), 20):
+        T = mg.T_melt_MgSiO3(P)
+        dG = molar_gibbs(liquid, P, T) - molar_gibbs(brg, P, T)
+        assert abs(dG) < 1e4, f"G_liq - G_brg = {dG / 1e3:.1f} kJ/mol at {P:.4e} Pa, {T:.0f} K"
 
 
 @pytest.mark.xfail(strict=True, reason="the HP-CEn to brg line at 12 GPa is an empirical cutoff")

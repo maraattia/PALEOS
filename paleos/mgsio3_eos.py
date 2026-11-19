@@ -55,6 +55,11 @@ _M_O = 15.999
 # MgSiO₃ base molar mass [kg/mol]
 _M_MgSiO3 = (_M_Mg + _M_Si + 3 * _M_O) * 1e-3  # 0.100387 kg/mol
 
+# Common shift of the Sokolova+22 pyroxene U0 onto the brg and liquid energy zero (#13): G_orthoen = G_liq
+# at 1 bar, 1831 K, the Stebbins+1984 point that also sets the liquid S0. It leaves a step of about
+# -170 kJ/mol in U from HP-CEn to brg across the empirical 12 GPa line.
+_U0_PYROXENE_SHIFT = 1718258.0250636367  # J/mol
+
 
 # =============================================================================
 # Equations of State Classes
@@ -1943,7 +1948,7 @@ class Sokolova22:
             # Sokolova+22 Table 2: U0 = -1565.1 kJ/mol; no anharmonic term (a0, m blank).
             # S0 = 0 for all three pyroxenes, the Sokolova+22 convention: their entropies meet at 0 K, and dS/dV matches the slope of each Sokolova+22 boundary within a factor of 1.7 up to 2000 K.
             self.params = {
-                'U0': -1565100.,           # J/mol  (S22 Table 2: -1565.1 kJ/mol)
+                'U0': -1565100. + _U0_PYROXENE_SHIFT,  # J/mol  (S22 Table 2: -1565.1 kJ/mol)
                 'S0': 0.0,                 # J/(mol·K)  (Sokolova+22 convention)
                 'V0': 31.28e-6,       # m³/mol
                 'K0': 112.8e9,        # Pa
@@ -1962,7 +1967,7 @@ class Sokolova22:
             # Sokolova+22 Table 2: U0 = -1564.6 kJ/mol; a0 = 13e-6 K⁻¹, m = 1.
             # S0 = 0 (Sokolova+22 convention). The liquid S0 is set against this phase by the Stebbins+1984 fusion entropy at 1 bar, 1831 K.
             self.params = {
-                'U0': -1564600.,      # J/mol  (S22 Table 2: -1564.6 kJ/mol)
+                'U0': -1564600. + _U0_PYROXENE_SHIFT,  # J/mol  (S22 Table 2: -1564.6 kJ/mol)
                 'S0': 0.0,            # J/(mol·K)  (Sokolova+22 convention)
                 'V0': 31.347e-6,      # m³/mol
                 'K0': 106.2e9,        # Pa
@@ -1981,7 +1986,7 @@ class Sokolova22:
             # Sokolova+22 Table 2: U0 = -1559.1 kJ/mol; no anharmonic term.
             # S0 = 0: heating crosses P_en_hpcen from HP-CEn into OrthoEn, to which the unshifted model already gives the higher entropy.
             self.params = {
-                'U0': -1559100.,           # J/mol  (S22 Table 2: -1559.1 kJ/mol)
+                'U0': -1559100. + _U0_PYROXENE_SHIFT,  # J/mol  (S22 Table 2: -1559.1 kJ/mol)
                 'S0': 0.0,                 # J/(mol·K)  (Sokolova+22 convention)
                 'V0': 30.310e-6,      # m³/mol
                 'K0': 128.4e9,        # Pa
