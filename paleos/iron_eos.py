@@ -1665,14 +1665,14 @@ class Hakim18:
         
         # Cold compression parameters (Holzapfel equation, Section 3.1)
         # Thermal model parameters from Bouchet et al. (2013), Table F.7
-        # U0/S0 set for continuity with the shifted Miozzi+20 EoS at the centre
+        # U0/S0 set for continuity with the shifted Miozzi+20 EoS at the center
         # of the 310 ± 100 GPa blend zone, at the γ-ε phase boundary temperature
         # T_γε(310 GPa) ≈ 2502 K.  S0 shifts in lockstep with M20 (+8.0) so
         # that S stays continuous across the blend; U0 is unaffected (both
         # sides of the blend receive the same T·ΔS0 shift to U).
         self.params = {
             'U0': 1183406.037,      # J/mol
-            'S0': -44.401441,       # J/(mol·K)  (M20 raw blend-centre value + 8.0)
+            'S0': -44.401441,       # J/(mol·K)  (M20 raw blend-center value + 8.0)
             'V0': 4.28575e-6,       # m³/mol
             'P0': 234.4e9,          # Pa
             'KT0': 1145.7e9,        # Pa
