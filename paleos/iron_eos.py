@@ -394,7 +394,9 @@ class Dorogokupets17:
         """
         Calculate total pressure at given volume and temperature.
         
-        P(V,T) = P_0(V) + P_th(V,T) + P_e(V,T)
+        P(V,T) = P_0(V) + P_th(V,T) - P_th(V,T_0) + P_e(V,T) - P_e(V,T_0)
+
+        P_0 is the 298 K isotherm (D17 Eq. 2), so both thermal terms vanish at T_0.
         
         Parameters
         ----------
@@ -409,8 +411,8 @@ class Dorogokupets17:
             Total pressure [Pa]
         """
         P_cold = self._cold_pressure(V)
-        P_thermal = self._thermal_pressure(V, T)
-        P_electronic = self._electronic_pressure(V, T)
+        P_thermal = self._thermal_pressure(V, T) - self._thermal_pressure(V, self.T0)
+        P_electronic = self._electronic_pressure(V, T) - self._electronic_pressure(V, self.T0)
         
         return P_cold + P_thermal + P_electronic
     
@@ -481,8 +483,12 @@ class Dorogokupets17:
         float
             Isochoric heat capacity [J/(mol·K)]
         """
+        return sum(self._heat_capacity_terms(V, T))
+
+    def _heat_capacity_terms(self, V: float, T: float) -> tuple:
+        """Lattice, electronic, and magnetic parts of C_V [J/(mol·K)]."""
         if T < 1e-6:
-            return 0.0
+            return 0.0, 0.0, 0.0
         
         x = V/self.params['V0']
         n = self.params['n']
@@ -528,7 +534,7 @@ class Dorogokupets17:
             
             Cv_mag = -R_GAS * np.log(B0 + 1) * (2*tau*df_tau + tau**2*d2f_tau)
         
-        return Cv_th + Cv_e + Cv_mag
+        return Cv_th, Cv_e, Cv_mag
     
     def _thermal_expansion_coeff(self, V: float, T: float) -> float:
         """
@@ -548,10 +554,9 @@ class Dorogokupets17:
         float
             Thermal expansion coefficient [K⁻¹]
         """
-        # Calculate (∂P/∂T)_V using equation (12)
-        gamma = self._gruneisen_parameter(V)
-        Cv = self._isochoric_heat_capacity(V, T)
-        dP_dT_V = gamma * Cv / V
+        # (∂P/∂T)_V = γ C_V,th/V + g C_V,e/V (Eqs. 12, 17). F_mag has no V dependence.
+        Cv_th, Cv_e, _ = self._heat_capacity_terms(V, T)
+        dP_dT_V = (self._gruneisen_parameter(V) * Cv_th + self.params['g'] * Cv_e) / V
         
         # Calculate isothermal bulk modulus
         Kt = self._isothermal_bulk_modulus(V, T)
@@ -562,8 +567,8 @@ class Dorogokupets17:
         """
         Calculate isothermal bulk modulus.
         
-        Equation (11): K_T = P_th(1 + γ - q) - γ^2 T C_V / V
-        plus cold compression and electronic contributions
+        K_T = K_0(V) + K_th(V,T) - K_th(V,T_0) + K_e(V,T) - K_e(V,T_0), with
+        K_th = P_th(1 + γ - q) - γ^2 T C_V,th / V (Eq. 11) and K_e = P_e(1 - g) (Eq. 17)
         
         Parameters
         ----------
@@ -587,22 +592,18 @@ class Dorogokupets17:
         
         K_cold = K0 * X**(-2) * np.exp(eta*(1 - X)) * (1 + (1 - X)*(eta*X + 1))
 
-        # Electronic contribution (equation 17)
+        # Thermal (Eq. 11) and electronic (Eq. 17) parts, relative to the 298 K isotherm
         g = self.params['g']
-
-        P_e = self._electronic_pressure(V, T)
-
-        K_e = P_e * (1 - g)
-        
-        # Thermal contribution
         gamma = self._gruneisen_parameter(V)
         q = self._q_parameter(V)
-        P_th = self._thermal_pressure(V, T)
-        Cv = self._isochoric_heat_capacity(V, T)
-        
-        K_th = P_th * (1 + gamma - q) - gamma**2 * T * Cv / V
-        
-        return K_cold + K_e + K_th
+
+        def K_thermal(T_):
+            K_e = self._electronic_pressure(V, T_) * (1 - g)
+            Cv_th = self._heat_capacity_terms(V, T_)[0]
+            K_th = self._thermal_pressure(V, T_) * (1 + gamma - q) - gamma**2 * T_ * Cv_th / V
+            return K_e + K_th
+
+        return K_cold + K_thermal(T) - K_thermal(self.T0)
     
     def _helmholtz_free_energy(self, V: float, T: float) -> float:
         """
@@ -978,7 +979,7 @@ class Miozzi20:
         # triple point (98.5 GPa, 3712 K): G_hcp(TP) = G_fcc(TP); since G is
         # S0-independent, U0 is unchanged by the S0 lift.
         self.params = {
-            'U0': 13770.894,        # J/mol  (from G-continuity at TP)
+            'U0': 13756.087,        # J/mol  (from G-continuity at TP)
             'S0': 8.0,              # J/(mol·K)  (M20 raw + 8.0 for α-ε ΔS>0)
             'V0': 6.87e-6,          # m³/mol
             'K0': 129.0e9,          # Pa
@@ -1671,7 +1672,7 @@ class Hakim18:
         # that S stays continuous across the blend; U0 is unaffected (both
         # sides of the blend receive the same T·ΔS0 shift to U).
         self.params = {
-            'U0': 1183406.037,      # J/mol
+            'U0': 1183391.230,      # J/mol
             'S0': -44.401441,       # J/(mol·K)  (M20 raw blend-center value + 8.0)
             'V0': 4.28575e-6,       # m³/mol
             'P0': 234.4e9,          # Pa
@@ -2737,7 +2738,7 @@ class Luo24:
         # U0 is fixed by enforcing Gibbs-energy continuity at the fcc-hcp-liquid
         # triple point (98.5 GPa, 3712 K): G_liq(TP) = G_fcc(TP).
         self.params = {
-            'U0': 337536.231,       # J/mol  (from G-continuity at TP)
+            'U0': 337521.425,       # J/mol  (from G-continuity at TP)
             'S0': 153.099,          # J/(mol·K)  (Zhang+15 anchor + 4.5 for hcp-liq ΔS>0)
             'V0': V0_molar,         # m³/mol
             'K0': 49.249e9,         # Pa

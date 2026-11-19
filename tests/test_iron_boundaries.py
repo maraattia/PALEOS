@@ -81,10 +81,7 @@ def with_xfails(xfails):
                          if b.name in xfails else []) for b in SOLID_BOUNDARIES]
 
 
-HEATING_XFAIL = {"gamma-delta": "the raw D17 bcc and fcc entropies leave dS down to -0.03 J/(mol K) near 1 bar"}
-
-
-@pytest.mark.parametrize("b", with_xfails(HEATING_XFAIL))
+@pytest.mark.parametrize("b", SOLID_BOUNDARIES, ids=IDS)
 def test_entropy_rises_on_heating(b, iron_phases):
     lo, hi = iron_phases[b.low], iron_phases[b.high]
     for P in b.pressures():
@@ -94,9 +91,7 @@ def test_entropy_rises_on_heating(b, iron_phases):
 
 
 CLAPEYRON_XFAIL = {
-    "gamma-delta": "dS on the gamma-delta line is within 0.2 J/(mol K) of zero, so dS/dV has no stable sign",
-    "alpha-epsilon": "dS/dV is 0.20 to 1.38 times the slope of the alpha-epsilon line",
-    "epsilon-gamma": "dS/dV falls to 0.35 times the slope of the epsilon-gamma line",
+    "alpha-epsilon": "dS/dV is 0.28 to 1.54 times the slope of the alpha-epsilon line",
 }
 
 
