@@ -1941,13 +1941,11 @@ class Sokolova22:
 
         if phase == 'lp-cen':
             # Sokolova+22 Table 2: U0 = -1565.1 kJ/mol; no anharmonic term (a0, m blank).
-            # S0 set for ΔS(en - lp) > 0 along the T > 750 K branch of the
-            # LP-CEn ↔ OrthoEn parabola (P_lpcen_en); the raw gap already exceeds
-            # 1 J/(mol·K), so the calibration value is just the small residual
-            # lift required to hit a consistent ∼1 J/(mol·K) margin.
+            # S0 = 0 for all three pyroxenes: one model, so their entropies meet at 0 K
+            # and the Sokolova+22 boundaries obey Clausius-Clapeyron without offsets.
             self.params = {
                 'U0': -1565100.,           # J/mol  (S22 Table 2: -1565.1 kJ/mol)
-                'S0': 0.05966225974237,    # J/(mol·K)  (ΔS > 1 on LP-CEn↔OrthoEn parabola)
+                'S0': 0.0,                 # J/(mol·K)  (Sokolova+22 convention)
                 'V0': 31.28e-6,       # m³/mol
                 'K0': 112.8e9,        # Pa
                 'K0_prime': 6.27,     # dimensionless
@@ -1963,12 +1961,11 @@ class Sokolova22:
             }
         elif phase == 'orthoen':
             # Sokolova+22 Table 2: U0 = -1564.6 kJ/mol; a0 = 13e-6 K⁻¹, m = 1.
-            # S0 = 0 — OrthoEn is the pyroxene anchor against which LP-CEn and
-            # HP-CEn S0 values are ratified (and against which the Stebbins+1984
-            # entropy-of-fusion anchor S_liq - S_en is applied at 1 bar, 1831 K).
+            # S0 = 0 (Sokolova+22 convention); the liquid S0 is set against this phase
+            # by the Stebbins+1984 fusion entropy at 1 bar, 1831 K.
             self.params = {
                 'U0': -1564600.,      # J/mol  (S22 Table 2: -1564.6 kJ/mol)
-                'S0': 0.0,            # J/(mol·K)  (pyroxene anchor)
+                'S0': 0.0,            # J/(mol·K)  (Sokolova+22 convention)
                 'V0': 31.347e-6,      # m³/mol
                 'K0': 106.2e9,        # Pa
                 'K0_prime': 7.80,     # dimensionless
@@ -1984,14 +1981,11 @@ class Sokolova22:
             }
         elif phase == 'hp-cen':
             # Sokolova+22 Table 2: U0 = -1559.1 kJ/mol; no anharmonic term.
-            # S0 set for ΔS(hp - en) > 0 along the OrthoEn↔HP-CEn parabola
-            # P_en_hpcen (which curves from the pyroxene TP toward high T) and
-            # for ΔS(hp - lp) > 0 along the LP-CEn↔HP-CEn line P_lpcen_hpcen.
-            # Raw ΔS(hp - en) is negative at T ∼ 2000 K, so this lift is
-            # necessary (not residual).
+            # S0 = 0: heating crosses P_en_hpcen from HP-CEn into OrthoEn, which the
+            # unshifted model already gives the higher entropy.
             self.params = {
                 'U0': -1559100.,           # J/mol  (S22 Table 2: -1559.1 kJ/mol)
-                'S0': 4.38889089061968,    # J/(mol·K)  (ΔS > 1 on OrthoEn↔HP-CEn parabola)
+                'S0': 0.0,                 # J/(mol·K)  (Sokolova+22 convention)
                 'V0': 30.310e-6,      # m³/mol
                 'K0': 128.4e9,        # Pa
                 'K0_prime': 4.52,     # dimensionless
