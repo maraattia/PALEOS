@@ -1665,12 +1665,11 @@ class Hakim18:
         
         # Cold compression parameters (Holzapfel equation, Section 3.1)
         # Thermal model parameters from Bouchet et al. (2013), Table F.7
-        # U0 and S0 make u and s equal to those of Miozzi20 (with its +8.0 S0
-        # lift) at the center of the 310 ± 100 GPa blend, on the γ-ε line
-        # extrapolated to 310 GPa, T_γε = 2306.76 K.
+        # U0, S0: least-squares fit of G_H18 = G_liq (Luo24) at 200 log-spaced points of the Anzellini et al. (2013) curve, 410 GPa to 1.3 TPa. Re-fit if the liquid or the curve changes.
+        # The absolute entropy is then negative at TPa and low T (about -50 J/(mol·K) at 1 TPa, 1 K).
         self.params = {
-            'U0': 1182570.325,      # J/mol  (u continuity at the blend center)
-            'S0': -43.889541,       # J/(mol·K)  (s continuity at the blend center)
+            'U0': 1142136.114,      # J/mol  (melting-curve fit)
+            'S0': -50.361674,       # J/(mol·K)  (melting-curve fit)
             'V0': 4.28575e-6,       # m³/mol
             'P0': 234.4e9,          # Pa
             'KT0': 1145.7e9,        # Pa
@@ -2378,24 +2377,16 @@ class HcpIronEos:
     """
     Composite equation of state for hcp-Fe (ε-phase) with smooth transition.
     
-    This class blends Miozzi20 and Hakim18 EoS across a transition zone
-    around 310 GPa to ensure smooth thermodynamic properties.
-    
-    The blending uses a smoothstep function:
-        w(P) = 3t² - 2t³  where t = (P - P_low) / (P_high - P_low)
-    
-    For P < P_low:  pure Miozzi20
-    For P > P_high: pure Hakim18
-    In between:     smooth interpolation
-    
-    All seven thermodynamic quantities are blended directly.
-    
+    This class blends Miozzi20 at low pressure into Hakim18 at high pressure with a smoothstep weight w(P) = 3t² - 2t³, t = (P - P_low) / (P_high - P_low): pure Miozzi20 below P_low, pure Hakim18 above P_high.
+
+    Density, internal energy, entropy, and the heat capacities are blended directly, so c_P = T (∂s/∂T)_P holds. α is the expansion of the blended density, and ∇_ad = P α / (ρ c_P). The blend breaks (∂s/∂P)_T = -α/ρ and dG/dP = V, because the two models differ in entropy, mostly through the electronic term that Miozzi20 lacks: across the zone, an isentrope read from s ends up to about 600 K from one integrated from ∇_ad. A Gibbs-energy blend would satisfy the Maxwell relations, but with these two models it makes α negative below melting. With the Hakim18 constants fitted to the melting curve, entropy falls with pressure across the zone below melting.
+
     Parameters
     ----------
     P_center : float, optional
         Center of transition zone [Pa]. Default: 310 GPa
     delta_P : float, optional
-        Half-width of transition zone [Pa]. Default: 30 GPa
+        Half-width of transition zone [Pa]. Default: 100 GPa
     
     Attributes
     ----------
@@ -2627,9 +2618,11 @@ class HcpIronEos:
         elif P >= self.P_high:
             return self.eos_high.thermal_expansion(P, T)
         else:
+            # -(∂ ln ρ/∂T)_P of the blended density, since w depends on P only
+            rho_low, rho_high = self.eos_low.density(P, T), self.eos_high.density(P, T)
             return self._blend(P,
-                               self.eos_low.thermal_expansion(P, T),
-                               self.eos_high.thermal_expansion(P, T))
+                               rho_low * self.eos_low.thermal_expansion(P, T),
+                               rho_high * self.eos_high.thermal_expansion(P, T)) / self._blend(P, rho_low, rho_high)
     
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
@@ -2652,9 +2645,8 @@ class HcpIronEos:
         elif P >= self.P_high:
             return self.eos_high.adiabatic_gradient(P, T)
         else:
-            return self._blend(P,
-                               self.eos_low.adiabatic_gradient(P, T),
-                               self.eos_high.adiabatic_gradient(P, T))
+            alpha = self.thermal_expansion(P, T)
+            return P * alpha / (self.density(P, T) * self.isobaric_heat_capacity(P, T))
 
 
 class Luo24:

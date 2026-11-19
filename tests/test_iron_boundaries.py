@@ -1,7 +1,7 @@
 """
 Entropy and Gibbs energy across the iron phase boundaries.
 
-The reference constants (U0, S0) are set so that entropy rises on heating across every solid boundary and on melting, and so that fcc, hcp, and liquid share one Gibbs energy at their triple point (98.5 GPa, 3712 K). Hakim18 is tied to Miozzi20 at the center of their blend, 310 GPa on the gamma-epsilon line, where s and u must match. The analytic boundaries and the EoS of each phase come from separate fits, so the Clausius-Clapeyron test allows a factor of 2.5 either way. The strict expected failures record known inconsistencies.
+The reference constants (U0, S0) are set so that entropy rises on heating across every solid boundary and on melting, and so that fcc, hcp, and liquid share one Gibbs energy at their triple point (98.5 GPa, 3712 K). Hakim18 U0 and S0 are fitted so that hcp and liquid share G along the melting curve from 410 GPa to 1.3 TPa. The analytic boundaries and the EoS of each phase come from separate fits, so the Clausius-Clapeyron test allows a factor of 2.5 either way. The strict expected failures record known inconsistencies.
 """
 
 from dataclasses import dataclass
@@ -127,20 +127,24 @@ def test_gibbs_continuity_at_triple_point(iron_phases):
     assert max(G) - min(G) < 1e-2, f"Gibbs spread {max(G) - min(G):.3e} J/mol"
 
 
-def test_hakim18_matches_miozzi20_at_blend_center(iron_phases):
-    hcp = iron_phases["solid-epsilon"]
-    P = hcp.P_center
-    T = fe.T_gamma_epsilon(P)
-    dS = molar_entropy(hcp.eos_high, P, T) - molar_entropy(hcp.eos_low, P, T)
-    dU = (hcp.eos_high.specific_internal_energy(P, T) - hcp.eos_low.specific_internal_energy(P, T)) * M
-    assert abs(dS) < 1e-2, f"S_H18 - S_M20 = {dS:.3f} J/(mol K)"
-    assert abs(dU) < 1.0, f"U_H18 - U_M20 = {dU:.1f} J/mol"
+def test_hakim18_reproduces_the_melting_curve(iron_phases):
+    """Hakim18 U0 and S0 are fitted so that hcp and liquid share G on the Anzellini et al. (2013) curve from 410 GPa to 1.3 TPa.
+
+    The melting temperature implied by the EoS stays within 8% of the curve from 330 GPa to 1.3 TPa (today -3.4% to +7.5%).
+    """
+    hcp, liquid = iron_phases["solid-epsilon"], iron_phases["liquid"]
+    for P in np.linspace(330e9, 1.3e12, 12):
+        T_m = fe.T_melt_Fe(P)
+        T_eos = brentq(lambda T: molar_gibbs(liquid, P, T) - molar_gibbs(hcp, P, T), 0.7 * T_m, 1.3 * T_m)
+        assert abs(T_eos / T_m - 1) < 0.08, f"EoS melting at {T_eos:.0f} K, curve at {T_m:.0f} K, {P:.4e} Pa"
 
 
 @pytest.mark.parametrize("phase, P", [
     ("solid-alpha", 1e5), ("solid-gamma", 1e5),
     pytest.param("solid-epsilon", 50e9, marks=pytest.mark.xfail(
         strict=True, raises=AssertionError, reason="hcp S0 is lifted by +8 J/(mol K) to keep dS > 0 on the alpha-epsilon line")),
+    pytest.param("solid-epsilon", 1e12, marks=pytest.mark.xfail(
+        strict=True, raises=AssertionError, reason="Hakim18 S0 comes from the melting-curve fit, which leaves S = -50 J/(mol K) at 1 TPa and 1 K")),
 ])
 def test_third_law(phase, P, iron_phases):
     assert abs(molar_entropy(iron_phases[phase], P, 1.0)) < 1e-1

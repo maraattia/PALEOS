@@ -1,7 +1,7 @@
 """
 Thermodynamic identities for every iron EoS.
 
-Each per-phase EoS must describe one material: alpha must equal -(d ln rho/dT)_P, the Maxwell relation (ds/dP)_T = -alpha/rho must hold with the tabulated alpha, c_p must equal T (ds/dT)_P, nabla_ad must equal P alpha/(rho c_p), and u, s, and rho must come from one Gibbs energy (dG/dP = V, dG/dT = -S). The points cover every class behind the IronEoS wrapper, including the Miozzi20 to Hakim18 blend and the liquid below its melting curve, which two-phase tables need. The strict expected failures record known inconsistencies.
+Each per-phase EoS must describe one material: alpha must equal -(d ln rho/dT)_P, the Maxwell relation (ds/dP)_T = -alpha/rho must hold with the tabulated alpha, c_p must equal T (ds/dT)_P, nabla_ad must equal P alpha/(rho c_p), and u, s, and rho must come from one Gibbs energy (dG/dP = V and dG/dT = -S). The points cover every class behind the IronEoS wrapper, including the Miozzi20 to Hakim18 blend and the liquid below its melting curve, which two-phase tables need. The strict expected failures record known inconsistencies.
 """
 
 import numpy as np
@@ -28,13 +28,13 @@ def point_id(phase, P, T):
     return f"{phase}-{P / 1e9:g}GPa-{T:g}K"
 
 
-BLEND = "the Miozzi20 to Hakim18 blend mixes the seven quantities directly"
+BLEND = "the Miozzi20 to Hakim18 blend mixes rho, u, and s linearly, which breaks the Maxwell relations (a Gibbs-energy blend gives K_T < 0 at 2500 K and below)"
 
 # point id -> (reason, tests that fail there)
 KNOWN = {
-    "solid-epsilon-250GPa-5000K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
-    "solid-epsilon-292.86GPa-5868K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
-    "solid-epsilon-370GPa-4000K": (BLEND, ("nabla_ad", "alpha", "maxwell", "gibbs")),
+    "solid-epsilon-250GPa-5000K": (BLEND, ("maxwell", "gibbs_P", "gibbs_T")),
+    "solid-epsilon-292.86GPa-5868K": (BLEND, ("maxwell", "gibbs_P", "gibbs_T")),
+    "solid-epsilon-370GPa-4000K": (BLEND, ("maxwell", "gibbs_P", "gibbs_T")),
 }
 
 
@@ -89,14 +89,26 @@ def test_cp_matches_entropy(phase, P, T, iron_phases):
     assert T * d_dT(eos.specific_entropy, P, T) == pytest.approx(eos.isobaric_heat_capacity(P, T), rel=1e-5, abs=0.0)
 
 
-@pytest.mark.parametrize("phase, P, T", cases("gibbs"))
-def test_gibbs_derivatives_match_volume_and_entropy(phase, P, T, iron_phases):
+@pytest.mark.parametrize("phase, P, T", cases("gibbs_P"))
+def test_gibbs_pressure_derivative_is_volume(phase, P, T, iron_phases):
     eos = iron_phases[phase]
-    V = 1.0 / eos.density(P, T)
-    S = eos.specific_entropy(P, T)
     g = lambda p, t: gibbs(eos, p, t)
-    assert d_dP(g, P, T) == pytest.approx(V, rel=1e-6, abs=0.0), "dG/dP != V"
-    assert abs(d_dT(g, P, T, h=1e-4) + S) * M < 1e-3, "dG/dT != -S"
+    assert d_dP(g, P, T) == pytest.approx(1.0 / eos.density(P, T), rel=1e-6, abs=0.0)
+
+
+@pytest.mark.parametrize("phase, P, T", cases("gibbs_T"))
+def test_gibbs_temperature_derivative_is_minus_entropy(phase, P, T, iron_phases):
+    eos = iron_phases[phase]
+    g = lambda p, t: gibbs(eos, p, t)
+    assert abs(d_dT(g, P, T, h=1e-4) + eos.specific_entropy(P, T)) * M < 1e-3
+
+
+def test_entropy_falls_with_pressure_in_the_blend_window(iron_phases):
+    """Inside 210 to 410 GPa the blend misses the Maxwell relations, but (ds/dP)_T must keep the sign set by alpha > 0 below melting."""
+    eos = iron_phases["solid-epsilon"]
+    for P in np.linspace(212e9, 408e9, 12):
+        for T in np.linspace(300.0, fe.T_melt_Fe(P) * 0.995, 8):
+            assert d_dP(eos.specific_entropy, P, T) < 0.0, (P, T)
 
 
 def test_liquid_extrapolation_joins_the_fit_smoothly():
