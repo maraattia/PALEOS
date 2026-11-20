@@ -71,11 +71,11 @@ Precomputed tables are hosted on [Zenodo](https://doi.org/10.5281/zenodo.1900031
 
 | Table                                 | Material | P range          | T range     | Resolution |
 |---------------------------------------|----------|------------------|-------------|------------|
-| `paleos_iron_tables_pt.dat`           | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K | 150 ppd    |
-| `paleos_iron_tables_pt_highres.dat`   | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K | 600 ppd    |
-| `paleos_mgsio3_tables_pt.dat`         | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K | 150 ppd    |
-| `paleos_mgsio3_tables_pt_highres.dat` | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K | 600 ppd    |
-| `paleos_water_tables_pt.dat`          | H₂O      | 1 μbar – 100 TPa | 100 – 10⁵ K | 150 ppd    |
+| `paleos_iron_eos_table_pt.dat`        | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K | 150 ppd    |
+| `paleos_iron_eos_table_pt_highres.dat` | Fe       | 1 bar – 100 TPa  | 300 – 10⁵ K | 600 ppd    |
+| `paleos_mgsio3_eos_table_pt.dat`      | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K | 150 ppd    |
+| `paleos_mgsio3_eos_table_pt_highres.dat` | MgSiO₃   | 1 bar – 100 TPa  | 300 – 10⁵ K | 600 ppd    |
+| `paleos_water_eos_table_pt.dat`       | H₂O      | 1 μbar – 100 TPa | 100 – 10⁵ K | 150 ppd    |
 
 Each file contains ten columns: `P`, `T`, `rho`, `u`, `s`, `cp`, `cv`, `alpha`, `nabla_ad`, `phase`.
 
@@ -92,7 +92,7 @@ T_min, T_max = 300.0, 1e5      # K
 
 # Load
 cols = ['P','T','rho','u','s','cp','cv','alpha','nabla_ad','phase']
-data = np.genfromtxt('paleos_iron_tables_pt.dat',
+data = np.genfromtxt('paleos_iron_eos_table_pt.dat',
                      names=cols, dtype=None, encoding='utf-8')
 
 # Reconstruct full regular grid
@@ -101,17 +101,17 @@ log_T = np.linspace(np.log10(T_min), np.log10(T_max), n_T)
 
 rho = np.full((n_P, n_T), np.nan)
 for row in data:
-    i = np.searchsorted(log_P, np.log10(row['P']))
-    j = np.searchsorted(log_T, np.log10(row['T']))
-    if i < n_P and j < n_T:
-        rho[i, j] = row['rho']
+    # Nearest grid index: the printed P and T are rounded, so searchsorted can land one cell off
+    i = int(np.rint((np.log10(row['P']) - log_P[0]) / (log_P[1] - log_P[0])))
+    j = int(np.rint((np.log10(row['T']) - log_T[0]) / (log_T[1] - log_T[0])))
+    rho[i, j] = row['rho']
 
 # Interpolate
 interp = RegularGridInterpolator((log_P, log_T), rho)
 rho_query = interp([[np.log10(100e9), np.log10(4000)]])[0]
 ```
 
-> **Note:** Grid points where the EoS failed to converge are omitted from the MgSiO₃ table (primarily in the low-P, high-T liquid regime, reflecting the vapor/supercritical regime not captured by PALEOS). Reconstruct the full rectangular grid with NaN fill before building an interpolator, as shown above.
+> **Note:** Some grid points are omitted from the tables: in the MgSiO₃ table, where the liquid EoS has no solution (mostly the low-P, high-T vapor/supercritical regime not captured by PALEOS), and in the Fe table, where the Grüneisen parameter of the liquid falls below 2/3 at low pressure and high temperature (its fitted thermal pressure has faded there). Reconstruct the full rectangular grid with NaN fill before building an interpolator, as shown above.
 
 ### Option 2: Python API
 
