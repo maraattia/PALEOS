@@ -128,3 +128,10 @@ def test_liquid_alpha_is_positive_over_the_table_box():
     for P in np.logspace(5, 14, 19):
         for T in np.logspace(np.log10(300.0), 5, 9):
             assert liquid.thermal_expansion(P, T) > 0.0, (P, T)
+
+
+def test_liquid_scope_ends_where_gamma_falls_below_two_thirds():
+    """Liquid with gamma < 2/3 lies outside PALEOS scope and out of the tables, hot and at low pressure only."""
+    liquid = fe.Luo24()
+    assert liquid.in_scope(1e5, 4000.0) and liquid.in_scope(1e10, 8000.0) and liquid.in_scope(1e13, 1e5)
+    assert not liquid.in_scope(1e5, 8000.0) and not liquid.in_scope(1e10, 2e4)

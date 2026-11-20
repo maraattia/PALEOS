@@ -2674,6 +2674,8 @@ class Luo24:
     - P_th(V,T) = (T - T_0) β(V), with β(V) = [a + b(V_0/V) + c(V_0/V)^2]/1000
 
     Beyond the calibration edge (V < V_e, where P_cold(V_e) = 1.3 TPa) the fitted β changes sign at V_0/V = 4.58. There γ = β V / C_V takes the Al'tshuler form γ_∞ + (γ_e - γ_∞)(V/V_e)^k, matched in value and slope to the fit at V_e, with γ_∞ = 0.827 from Hakim18. P, K_T, S, U, and α all derive from this β.
+
+    The fit also reaches β = 0 at V_0/V = 0.914, where the thermal pressure of the hot, expanded liquid fades. `in_scope` is False where γ < 2/3, the monatomic ideal-gas value (from about 6600 K at 1 bar, 12,300 K at 10 GPa, and 63,000 K at 100 GPa upward), and the tables omit those states.
     
     All methods take pressure P [Pa] and temperature T [K] as inputs and
     return quantities in SI units.
@@ -3105,6 +3107,11 @@ class Luo24:
     # Public interface
     # =========================================================================
     
+    def in_scope(self, P: float, T: float) -> bool:
+        """False where the Grüneisen parameter falls below 2/3, the monatomic ideal-gas value, where the fitted thermal pressure has faded and the liquid lies outside PALEOS scope."""
+        V = self._find_volume(P, T)
+        return self._thermal_pressure_coeff(V) * V / self.Cv_molar >= 2.0 / 3.0
+
     def density(self, P: float, T: float) -> float:
         """
         Calculate density at given pressure and temperature.
