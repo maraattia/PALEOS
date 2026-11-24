@@ -6,9 +6,9 @@ This is the shear modulus of a Maxwell or Andrade body. In liquids the relaxed m
 - MgSiO3 solids: finite-strain cold term and Debye thermal term of Stixrude & Lithgow-Bertelloni (2005, Eqs. 33, 41, 46, and 47), with the Stixrude & Lithgow-Bertelloni (2024) parameters of each phase (their own V0, K0, and K0') at the PALEOS volume.
 - Solid iron: the Stixrude & Lithgow-Bertelloni (2024) cold curve at the given pressure, softened toward melting with the Nadal & Le Poac (2003) model. Its constants f = 0.112 and zeta = 0.1048 reproduce the ab initio hcp moduli of Martorell et al. (2013, Table S1) at 360 GPa, with their melting point of 7350 K at 360 GPa carried to other pressures in proportion to the PALEOS melting curve (Anzellini et al. 2013).
 - Liquid iron: 0.712 times the hcp cold-curve modulus at the liquid density plus 6.02 MPa/K, a fit to the infinite-frequency moduli of Xian et al. (2019, Table S2) over 9.5 to 13.3 g/cm3 and 4300 to 10000 K (rms 7.4 GPa).
-- Liquid MgSiO3: the shear modulus of MgSiO3 glass at the same density, 31.94 GPa (rho / 3000 kg/m3)^1.904, a fit to the first-principles glass moduli of Ghosh et al. (2014, Table S2) over 3.0 to 7.0 g/cm3. The glass stands in for the unrelaxed melt (Dingwell & Webb 1989).
+- Liquid MgSiO3: the shear modulus of MgSiO3 glass at the same density, 31.94 GPa (rho / 3000 kg/m3)^1.904, a fit to the first-principles glass moduli of Ghosh et al. (2014, Table S2) over 3.0 to 7.0 g/cm3. The glass stands in for the unrelaxed melt (Dingwell & Webb 1989). Below 3.0 g/cm3 the modulus stays at its 3.0 g/cm3 value, which lies nearer the 41.1 GPa measured for the glass at ambient conditions (Sanchez-Valle & Bass 2010) than the extrapolated fit.
 
-Outside the density ranges of the liquid fits, the fits are extrapolated.
+Above the density ranges of the liquid fits, the fits are extrapolated.
 """
 
 from functools import lru_cache
@@ -155,6 +155,6 @@ def liquid_iron_shear_modulus(rho, T):
 
 
 def liquid_mgsio3_shear_modulus(rho):
-    """Unrelaxed shear modulus [Pa] of liquid MgSiO3 at density rho [kg/m3]."""
+    """Unrelaxed shear modulus [Pa] of liquid MgSiO3 at density rho [kg/m3], held at its 3.0 g/cm3 value below the fitted range."""
     a, n = LIQUID_MGSIO3
-    return a * (rho / 3000.0) ** n
+    return a * (max(rho, 3000.0) / 3000.0) ** n
