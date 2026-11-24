@@ -49,3 +49,23 @@ def test_bulk_modulus_ratio_is_heat_capacity_ratio(phases, material, phase, P, T
 @pytest.mark.parametrize("material, phase, P, T", cases())
 def test_shear_modulus_is_positive(phases, material, phase, P, T):
     assert phases[material][phase].shear_modulus(P, T) > 0
+
+
+WATER_POINTS = [(1e5, 300.0), (1e5, 200.0), (1e8, 266.7), (5e9, 300.0), (30e9, 1000.0), (0.56e9, 2993.0),
+                (398e9, 300.0), (1e12, 1e4), (1e3, 500.0)]
+
+
+@pytest.mark.parametrize("P, T", WATER_POINTS)
+def test_water_bulk_moduli(water, P, T):
+    h = 1e-2 * P
+    K_fd = 2 * h / np.log(water.density(P + h, T) / water.density(P - h, T))
+    K_T = water.isothermal_bulk_modulus(P, T)
+    assert K_T == pytest.approx(K_fd, rel=2e-2)
+    K_S = water.adiabatic_bulk_modulus(P, T)
+    if np.isfinite(K_S):
+        assert K_S * water.isochoric_heat_capacity(P, T) == pytest.approx(K_T * water.isobaric_heat_capacity(P, T), rel=1e-9)
+    assert np.isnan(water.shear_modulus(P, T))
+
+
+def test_water_vapor_is_an_ideal_gas(water):
+    assert water.isothermal_bulk_modulus(1e3, 500.0) == pytest.approx(1e3, rel=1e-2)

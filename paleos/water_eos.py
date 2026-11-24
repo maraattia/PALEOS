@@ -969,22 +969,38 @@ class Haldemann20:
         """
         return self._raw_adiabatic_gradient(P, T)
 
-    def adiabatic_bulk_modulus(self, P: float, T: float) -> float:
-        """Adiabatic bulk modulus K_S = ρ w² [Pa], with w the AQUA bulk speed of sound."""
-        return self._raw_density(P, T) * self._raw_speed_of_sound(P, T)**2
+    # Smallest change of log10(rho) across the difference stencil that the 9-digit AQUA density resolves to a few percent
+    _LOG_RHO_RESOLUTION = 1e-7
 
     def isothermal_bulk_modulus(self, P: float, T: float) -> float:
         """
-        Isothermal bulk modulus K_T = K_S C_V / C_P = K_S / (1 + T α² w² / C_P) [Pa].
+        Isothermal bulk modulus K_T = (∂P/∂ ln ρ)_T of the tabulated density [Pa].
 
-        Derived from the sound speed with the C_V identity above. A pressure derivative of the tabulated density is not usable: at low pressure the density of the condensed phases changes by less than the precision of the AQUA table.
+        Centered difference one AQUA grid step on either side in log P, one-sided where a side leaves the table or lies in another phase. NaN where the change of log10 ρ across the stencil is below 1e-7, the precision of the AQUA density, as for ice below about 0.35 bar and liquid water below about 0.04 bar.
         """
-        K_S = self.adiabatic_bulk_modulus(P, T)
+        lp = np.log10(P)
+        step = self.log10_P_grid[1] - self.log10_P_grid[0]
+        phase = self._raw_phase_id(P, T)
+        sides = [x for x in (lp - step, lp + step)
+                 if self.log10_P_grid[0] <= x <= self.log10_P_grid[-1] and self._raw_phase_id(10.0**x, T) == phase]
+        if not sides:
+            return np.nan
+        lo, hi = (sides[0], sides[-1]) if len(sides) == 2 else sorted((sides[0], lp))
+        dlogrho = self._eval_interp(self._interp_log_rho, 10.0**hi, T) - self._eval_interp(self._interp_log_rho, 10.0**lo, T)
+        if not dlogrho > self._LOG_RHO_RESOLUTION:
+            return np.nan
+        return P * (hi - lo) / dlogrho
+
+    def adiabatic_bulk_modulus(self, P: float, T: float) -> float:
+        """Adiabatic bulk modulus K_S = K_T C_P / C_V = K_T (1 + T α² w² / C_P) [Pa], with the C_V identity above. NaN where C_P <= 0."""
+        K_T = self.isothermal_bulk_modulus(P, T)
         alpha = self._thermal_expansion_numerical(P, T)
         if alpha == 0:
-            return K_S
-        w = self._raw_speed_of_sound(P, T)
-        return K_S / (1 + T * alpha**2 * w**2 / self.isobaric_heat_capacity(P, T))
+            return K_T
+        cp = self.isobaric_heat_capacity(P, T)
+        if not cp > 0:
+            return np.nan
+        return K_T * (1 + T * alpha**2 * self._raw_speed_of_sound(P, T)**2 / cp)
 
     def shear_modulus(self, P: float, T: float) -> float:
         """Unrelaxed shear modulus [Pa]. PALEOS has no shear model for water or ice yet, so this is NaN."""
