@@ -13,7 +13,8 @@ from paleos.checks import check_table_consistency
 
 QUANTITIES = (('rho', 'density'), ('u', 'specific_internal_energy'), ('s', 'specific_entropy'),
               ('cp', 'isobaric_heat_capacity'), ('cv', 'isochoric_heat_capacity'),
-              ('alpha', 'thermal_expansion'), ('nabla_ad', 'adiabatic_gradient'))
+              ('alpha', 'thermal_expansion'), ('nabla_ad', 'adiabatic_gradient'),
+              ('K_T', 'isothermal_bulk_modulus'), ('K_S', 'adiabatic_bulk_modulus'), ('mu', 'shear_modulus'))
 
 
 def log_grid(lo, hi, ppd):
@@ -58,4 +59,11 @@ def test_the_rules_catch_an_alpha_off_its_density(iron_rows):
     """The check must not be vacuous: alpha scaled by 1.3 in the liquid, as the old floor did in part of it, has to fail."""
     bad = [dict(r, alpha=r['alpha'] * 1.3, nabla_ad=r['nabla_ad'] * 1.3) if r['phase'] == 'liquid' else r for r in iron_rows]
     with pytest.raises(ValueError, match=r"\[alpha\]"):
+        check_table_consistency(bad, "corrupted iron")
+
+
+def test_the_rules_catch_a_bulk_modulus_off_its_density(iron_rows):
+    """K_T and K_S scaled together by 1.3 in the liquid keep K_S / K_T = C_P / C_V, so only the density derivative can catch them."""
+    bad = [dict(r, K_T=r['K_T'] * 1.3, K_S=r['K_S'] * 1.3) if r['phase'] == 'liquid' else r for r in iron_rows]
+    with pytest.raises(ValueError, match=r"\[K_T\]"):
         check_table_consistency(bad, "corrupted iron")

@@ -10,18 +10,27 @@ Each row is a dict with keys P [Pa], T [K], rho, u, s, cp, cv, alpha, nabla_ad (
 - density_isotherm: rho rises with P along every isotherm within one phase.
 - entropy_isotherm: s falls with P along every isotherm within one phase where alpha > 0, as the Maxwell relation (ds/dP)_T = -alpha/rho requires.
 - alpha, cp, first_law: within one phase, by centered differences along each isobar, alpha matches -d ln(rho)/dT, C_P matches T ds/dT, and du matches T ds - P dv, each to rel_tol plus half the change of the tabulated quantity across the three-point stencil, which bounds the truncation error of the difference where the quantity varies fast (near a spinodal, for instance).
+
+Rows that carry the elastic moduli K_T, K_S, and mu (Pa) also face these rules:
+
+- finite: K_T and K_S are finite. mu may be NaN, where no shear model applies.
+- bulk_moduli: K_T > 0 and K_S / K_T = C_P / C_V, to 1e-6.
+- shear_modulus: mu > 0 wherever it is not NaN.
+- K_T: within one phase, by centered differences along each isotherm, K_T matches d P / d ln(rho), to the same tolerance as alpha.
 """
 
 import numpy as np
 
 QUANTITIES = ('rho', 'u', 's', 'cp', 'cv', 'alpha', 'nabla_ad')
+MODULI = ('K_T', 'K_S', 'mu')
 
 
 def table_consistency_problems(rows, rel_tol=0.1):
     """Return the list of failure messages, one per broken rule, empty if the rows pass."""
     P = np.array([r['P'] for r in rows], dtype=float)
     T = np.array([r['T'] for r in rows], dtype=float)
-    q = {k: np.array([r[k] for r in rows], dtype=float) for k in QUANTITIES}
+    moduli = bool(rows) and 'K_T' in rows[0]
+    q = {k: np.array([r[k] for r in rows], dtype=float) for k in QUANTITIES + (MODULI if moduli else ())}
     phase = np.array([r['phase'] for r in rows])
     problems = []
 
@@ -31,7 +40,7 @@ def table_consistency_problems(rows, rel_tol=0.1):
             problems.append(f"[{rule}] {bad.sum()} rows with {what} (first at P = {P[k]:.6e} Pa, T = {T[k]:.2f} K, {phase[k]})")
 
     all_rows = np.arange(len(rows))
-    finite = np.isfinite(np.column_stack([q[k] for k in QUANTITIES])).all(axis=1)
+    finite = np.isfinite(np.column_stack([q[k] for k in QUANTITIES + (('K_T', 'K_S') if moduli else ())])).all(axis=1)
     report('finite', ~finite, "NaN or infinite values", all_rows)
 
     with np.errstate(invalid='ignore', divide='ignore'):
@@ -41,6 +50,12 @@ def table_consistency_problems(rows, rel_tol=0.1):
         lhs, rhs = q['nabla_ad'] * q['rho'] * q['cp'], P * q['alpha']
         bad = finite & ~(np.abs(lhs - rhs) <= 1e-6 * np.abs(rhs))
         report('nabla_ad', bad, "nabla_ad != P alpha / (rho C_P)", all_rows)
+
+        if moduli:
+            bad = finite & (~(q['K_T'] > 0) | ~(np.abs(q['K_S'] * q['cv'] - q['K_T'] * q['cp']) <= 1e-6 * np.abs(q['K_T'] * q['cp'])))
+            report('bulk_moduli', bad, "K_T <= 0 or K_S / K_T != C_P / C_V", all_rows)
+            bad = ~np.isnan(q['mu']) & ~(q['mu'] > 0)
+            report('shear_modulus', bad, "mu <= 0", all_rows)
 
         # Along isobars, in order of rising T
         o = np.lexsort((T, P))
@@ -75,6 +90,13 @@ def table_consistency_problems(rows, rel_tol=0.1):
         expands = (q['alpha'][o][1:] > 0) & (q['alpha'][o][:-1] > 0)
         bad = step & expands & ~(np.diff(q['s'][o]) < 0)
         report('entropy_isotherm', bad, "entropy not falling with P along the isotherm where alpha > 0", o)
+
+        if moduli:
+            To, ph, fo, K, rho = T[o], phase[o], finite[o], q['K_T'][o], q['rho'][o]
+            inner = (To[2:] == To[:-2]) & (ph[2:] == ph[1:-1]) & (ph[:-2] == ph[1:-1]) & fo[2:] & fo[1:-1] & fo[:-2]
+            K_fd = (P[o][2:] - P[o][:-2]) / np.log(rho[2:] / rho[:-2])
+            bad = inner & ~(np.abs(K[1:-1] - K_fd) <= rel_tol * np.abs(K_fd) + 0.5 * np.abs(K[2:] - K[:-2]))
+            report('K_T', pad(bad), f"K_T off dP/d ln(rho) by more than {rel_tol:.0%}", o)
 
     return problems
 
