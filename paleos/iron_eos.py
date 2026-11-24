@@ -41,6 +41,8 @@ Date: November 2025
 import numpy as np
 from scipy.optimize import brentq
 
+from . import shear
+
 # Physical constants
 R_GAS = 8.314462618  # J/(mol·K) - Universal gas constant
 ATOMIC_MASS_FE = 55.845e-3  # kg/mol - Atomic mass of iron
@@ -897,6 +899,10 @@ class Dorogokupets17:
         alpha = self._thermal_expansion_coeff(V, T)
         return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
 
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa], from the SLB cold curve with the Nadal & Le Poac softening (see paleos.shear)."""
+        return shear.solid_iron_shear_modulus('fea' if self.phase == 'bcc' else 'feg', P, T, self.density(P, T))
+
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
         Calculate dimensionless adiabatic temperature gradient.
@@ -1602,6 +1608,10 @@ class Miozzi20:
         K_T = self._isothermal_bulk_modulus(V, T)
         alpha = self._thermal_expansion_coeff(V, T)
         return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
+
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa], from the SLB cold curve with the Nadal & Le Poac softening (see paleos.shear)."""
+        return shear.solid_iron_shear_modulus('fee', P, T, self.density(P, T))
 
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
@@ -2381,6 +2391,10 @@ class Hakim18:
         alpha = self._thermal_expansion_coeff(V, T)
         return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
 
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa], from the SLB cold curve with the Nadal & Le Poac softening (see paleos.shear)."""
+        return shear.solid_iron_shear_modulus('fee', P, T, self.density(P, T))
+
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
         Calculate dimensionless adiabatic temperature gradient.
@@ -2689,6 +2703,10 @@ class HcpIronEos:
             return self.eos_high.adiabatic_bulk_modulus(P, T)
         return (self.isothermal_bulk_modulus(P, T) * self.isobaric_heat_capacity(P, T)
                 / self.isochoric_heat_capacity(P, T))
+
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa] at the blended density, from the SLB cold curve with the Nadal & Le Poac softening (see paleos.shear)."""
+        return shear.solid_iron_shear_modulus('fee', P, T, self.density(P, T))
 
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
@@ -3312,6 +3330,10 @@ class Luo24:
         K_T = self._isothermal_bulk_modulus(V, T)
         alpha = self._thermal_expansion_coeff(V, T)
         return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
+
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa] of liquid iron (see paleos.shear). The relaxed modulus is zero."""
+        return shear.liquid_iron_shear_modulus(self.density(P, T), T)
 
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
@@ -4428,6 +4450,11 @@ class IronEoS:
         """Calculate adiabatic bulk modulus K_S [Pa]."""
         eos, _ = self._get_eos(P, T)
         return eos.adiabatic_bulk_modulus(P, T)
+
+    def shear_modulus(self, P, T):
+        """Calculate unrelaxed shear modulus [Pa]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.shear_modulus(P, T)
 
     def adiabatic_gradient(self, P, T):
         """Calculate dimensionless adiabatic temperature gradient."""

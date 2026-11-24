@@ -42,6 +42,8 @@ from functools import lru_cache
 import numpy as np
 from scipy.optimize import brentq
 
+from . import shear
+
 # Physical constants
 R_GAS = 8.314462618  # J/(mol·K) - Universal gas constant
 N_AVOGADRO = 6.02214076e23  # mol^-1 - Avogadro number
@@ -1062,6 +1064,10 @@ class Wolf15:
         alpha = self._thermal_expansion_coeff(V, T)
         return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
 
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa], Stixrude & Lithgow-Bertelloni (2005, 2024) at the PALEOS volume (see paleos.shear)."""
+        return shear.slb_shear_modulus('mgpv', self.density(P, T), T)
+
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
         Calculate dimensionless adiabatic temperature gradient.
@@ -1841,6 +1847,10 @@ class Sakai16:
         K_T = self._isothermal_bulk_modulus(V, T)
         alpha = self._thermal_expansion_coeff(V, T)
         return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity_molar(V, T))
+
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa], Stixrude & Lithgow-Bertelloni (2005, 2024) at the PALEOS volume (see paleos.shear)."""
+        return shear.slb_shear_modulus('mppv', self.density(P, T), T)
 
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
@@ -2796,6 +2806,10 @@ class Sokolova22:
         alpha = self._thermal_expansion_coeff(V, T)
         return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
 
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa], Stixrude & Lithgow-Bertelloni (2005, 2024) at the PALEOS volume (see paleos.shear)."""
+        return shear.slb_shear_modulus({'lp-cen': 'cen', 'orthoen': 'en', 'hp-cen': 'mgc2'}[self.phase], self.density(P, T), T)
+
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
         Calculate dimensionless adiabatic temperature gradient.
@@ -3181,6 +3195,10 @@ class Wolf18:
         """Adiabatic bulk modulus K_S = -V (∂P/∂V)_S [Pa], evaluated by RTpress."""
         V = self._find_volume(P, T)
         return self._rtpress.eval_bulk_mod(V, T, const='S') * self._GPA_TO_PA
+
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa] of liquid MgSiO3, that of the glass at the same density (see paleos.shear). The relaxed modulus is zero."""
+        return shear.liquid_mgsio3_shear_modulus(self.density(P, T))
 
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
@@ -3678,6 +3696,11 @@ class MgSiO3EoS:
         """Calculate adiabatic bulk modulus K_S [Pa]."""
         eos, _ = self._get_eos(P, T)
         return eos.adiabatic_bulk_modulus(P, T)
+
+    def shear_modulus(self, P, T):
+        """Calculate unrelaxed shear modulus [Pa]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.shear_modulus(P, T)
 
     def adiabatic_gradient(self, P, T):
         """Calculate dimensionless adiabatic temperature gradient."""

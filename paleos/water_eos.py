@@ -986,6 +986,10 @@ class Haldemann20:
         w = self._raw_speed_of_sound(P, T)
         return K_S / (1 + T * alpha**2 * w**2 / self.isobaric_heat_capacity(P, T))
 
+    def shear_modulus(self, P: float, T: float) -> float:
+        """Unrelaxed shear modulus [Pa]. PALEOS has no shear model for water or ice yet, so this is NaN."""
+        return np.nan
+
     # =========================================================================
     # Additional diagnostics
     # =========================================================================
@@ -1389,6 +1393,10 @@ class WaterEoS:
     def adiabatic_bulk_modulus(self, P, T):
         """Calculate adiabatic bulk modulus K_S [Pa]."""
         return self._eos.adiabatic_bulk_modulus(P, T)
+
+    def shear_modulus(self, P, T):
+        """Unrelaxed shear modulus [Pa], NaN for every water phase."""
+        return self._eos.shear_modulus(P, T)
 
     def mmw(self, P, T):
         """Mean molecular weight [kg/mol]."""

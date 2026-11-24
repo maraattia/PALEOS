@@ -1,7 +1,7 @@
 """
-Bulk moduli of every iron and MgSiO3 EoS.
+Elastic moduli of every iron and MgSiO3 EoS.
 
-K_T must equal rho (dP/drho)_T of the EoS density, and K_S / K_T must equal C_P / C_V. The points cover every class behind the IronEoS and MgSiO3EoS wrappers, the Miozzi20 to Hakim18 blend zone, and metastable states on both sides of the melting curves, which two-phase tables need.
+K_T must equal rho (dP/drho)_T of the EoS density, K_S / K_T must equal C_P / C_V, and the unrelaxed shear modulus must be positive (Born stability). The points cover every class behind the IronEoS and MgSiO3EoS wrappers, the Miozzi20 to Hakim18 blend zone, and metastable states on both sides of the melting curves, which two-phase tables need.
 """
 
 import numpy as np
@@ -44,3 +44,8 @@ def test_bulk_modulus_ratio_is_heat_capacity_ratio(phases, material, phase, P, T
     eos = phases[material][phase]
     ratio = eos.isobaric_heat_capacity(P, T) / eos.isochoric_heat_capacity(P, T)
     assert eos.adiabatic_bulk_modulus(P, T) / eos.isothermal_bulk_modulus(P, T) == pytest.approx(ratio, rel=1e-9)
+
+
+@pytest.mark.parametrize("material, phase, P, T", cases())
+def test_shear_modulus_is_positive(phases, material, phase, P, T):
+    assert phases[material][phase].shear_modulus(P, T) > 0
