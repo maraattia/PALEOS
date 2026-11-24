@@ -1,7 +1,7 @@
 """
 Unrelaxed (infinite-frequency) shear modulus of the iron and MgSiO3 phases.
 
-This is the shear modulus of a Maxwell or Andrade body. In liquids the relaxed modulus is zero, and the unrelaxed one below is what a viscoelastic model needs. Every function takes the density of the PALEOS phase, so the modulus follows the PALEOS volume, and returns Pa.
+This is the shear modulus of a Maxwell or Andrade body. In liquids the relaxed modulus is zero, and the unrelaxed one below is what a viscoelastic model needs. The MgSiO3 and liquid functions take the density of the PALEOS phase, so their modulus follows the PALEOS volume. Solid iron takes its cold term at the PALEOS pressure on the SLB 300 K isotherm and uses the density only in its thermal term. Every function returns Pa.
 
 - MgSiO3 solids: finite-strain cold term and Debye thermal term of Stixrude & Lithgow-Bertelloni (2005, Eqs. 33, 41, 46, and 47), with the Stixrude & Lithgow-Bertelloni (2024) parameters of each phase (their own V0, K0, and K0') at the PALEOS volume.
 - Solid iron: the Stixrude & Lithgow-Bertelloni (2024) cold curve at the given pressure, softened toward melting with the Nadal & Le Poac (2003) model. Its constants f = 0.112 and zeta = 0.1048 reproduce the ab initio hcp moduli of Martorell et al. (2013, Table S1) at 360 GPa, with their melting point of 7350 K at 360 GPa carried to other pressures in proportion to the PALEOS melting curve (Anzellini et al. 2013).

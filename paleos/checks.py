@@ -13,7 +13,7 @@ Each row is a dict with keys P [Pa], T [K], rho, u, s, cp, cv, alpha, nabla_ad (
 
 Rows that carry the elastic moduli K_T, K_S, and mu (Pa) also face these rules:
 
-- finite: K_T and K_S are finite. mu may be NaN, where no shear model applies.
+- finite: K_T and K_S are finite. mu may be NaN, where no shear model applies or the model is out of range.
 - bulk_moduli: K_T > 0 and K_S / K_T = C_P / C_V, to 1e-6.
 - shear_modulus: mu > 0 wherever it is not NaN.
 - K_T: within one phase, by centered differences along each isotherm, K_T matches d P / d ln(rho), to the same tolerance as alpha.

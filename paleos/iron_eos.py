@@ -2682,7 +2682,7 @@ class HcpIronEos:
         """
         Isothermal bulk modulus K_T = ρ (∂P/∂ρ)_T of the blended density [Pa].
 
-        Inside the blend zone, (∂ρ/∂P)_T takes the term (dw/dP)(ρ_Hakim18 - ρ_Miozzi20) from the pressure dependence of the weight, so K_T is consistent with the tabulated density.
+        Inside the blend zone, (∂ρ/∂P)_T takes the term (dw/dP)(ρ_Hakim18 - ρ_Miozzi20) from the pressure dependence of the weight, so K_T is consistent with the tabulated density. It is a property of the blend: K_T can fall outside both models (1226 GPa at 300 GPa and 2000 K, against 1449 GPa for Miozzi20 and 1322 GPa for Hakim18), and dK_T/dP ranges from about 0.3 to 11 across the zone, against 3 to 4 outside it.
         """
         if P <= self.P_low:
             return self.eos_low.isothermal_bulk_modulus(P, T)
@@ -2705,7 +2705,7 @@ class HcpIronEos:
                 / self.isochoric_heat_capacity(P, T))
 
     def shear_modulus(self, P: float, T: float) -> float:
-        """Unrelaxed shear modulus [Pa] at the blended density, from the SLB cold curve with the Nadal & Le Poac softening (see paleos.shear)."""
+        """Unrelaxed shear modulus [Pa], from the SLB cold curve with the Nadal & Le Poac softening (see paleos.shear), with the blended density in its thermal term."""
         return shear.solid_iron_shear_modulus('fee', P, T, self.density(P, T))
 
     def adiabatic_gradient(self, P: float, T: float) -> float:
