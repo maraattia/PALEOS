@@ -969,6 +969,23 @@ class Haldemann20:
         """
         return self._raw_adiabatic_gradient(P, T)
 
+    def adiabatic_bulk_modulus(self, P: float, T: float) -> float:
+        """Adiabatic bulk modulus K_S = ρ w² [Pa], with w the AQUA bulk speed of sound."""
+        return self._raw_density(P, T) * self._raw_speed_of_sound(P, T)**2
+
+    def isothermal_bulk_modulus(self, P: float, T: float) -> float:
+        """
+        Isothermal bulk modulus K_T = K_S C_V / C_P = K_S / (1 + T α² w² / C_P) [Pa].
+
+        Derived from the sound speed with the C_V identity above. A pressure derivative of the tabulated density is not usable: at low pressure the density of the condensed phases changes by less than the precision of the AQUA table.
+        """
+        K_S = self.adiabatic_bulk_modulus(P, T)
+        alpha = self._thermal_expansion_numerical(P, T)
+        if alpha == 0:
+            return K_S
+        w = self._raw_speed_of_sound(P, T)
+        return K_S / (1 + T * alpha**2 * w**2 / self.isobaric_heat_capacity(P, T))
+
     # =========================================================================
     # Additional diagnostics
     # =========================================================================
@@ -1364,6 +1381,14 @@ class WaterEoS:
     def adiabatic_gradient(self, P, T):
         """Calculate dimensionless adiabatic temperature gradient."""
         return self._eos.adiabatic_gradient(P, T)
+
+    def isothermal_bulk_modulus(self, P, T):
+        """Calculate isothermal bulk modulus K_T [Pa]."""
+        return self._eos.isothermal_bulk_modulus(P, T)
+
+    def adiabatic_bulk_modulus(self, P, T):
+        """Calculate adiabatic bulk modulus K_S [Pa]."""
+        return self._eos.adiabatic_bulk_modulus(P, T)
 
     def mmw(self, P, T):
         """Mean molecular weight [kg/mol]."""

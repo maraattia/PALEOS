@@ -1051,6 +1051,17 @@ class Wolf15:
         V = self._find_volume(P, T)
         return self._thermal_expansion_coeff(V, T)
     
+    def isothermal_bulk_modulus(self, P: float, T: float) -> float:
+        """Isothermal bulk modulus K_T = -V (∂P/∂V)_T [Pa]."""
+        return self._isothermal_bulk_modulus(self._find_volume(P, T), T)
+
+    def adiabatic_bulk_modulus(self, P: float, T: float) -> float:
+        """Adiabatic bulk modulus K_S = K_T C_P / C_V [Pa], with C_P - C_V = α² T V K_T."""
+        V = self._find_volume(P, T)
+        K_T = self._isothermal_bulk_modulus(V, T)
+        alpha = self._thermal_expansion_coeff(V, T)
+        return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
+
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
         Calculate dimensionless adiabatic temperature gradient.
@@ -1820,6 +1831,17 @@ class Sakai16:
         V = self._find_volume(P, T)
         return self._thermal_expansion_coeff(V, T)
     
+    def isothermal_bulk_modulus(self, P: float, T: float) -> float:
+        """Isothermal bulk modulus K_T = -V (∂P/∂V)_T [Pa]."""
+        return self._isothermal_bulk_modulus(self._find_volume(P, T), T)
+
+    def adiabatic_bulk_modulus(self, P: float, T: float) -> float:
+        """Adiabatic bulk modulus K_S = K_T C_P / C_V [Pa], with C_P - C_V = α² T V K_T."""
+        V = self._find_volume(P, T)
+        K_T = self._isothermal_bulk_modulus(V, T)
+        alpha = self._thermal_expansion_coeff(V, T)
+        return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity_molar(V, T))
+
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
         Calculate dimensionless adiabatic temperature gradient.
@@ -2763,6 +2785,17 @@ class Sokolova22:
         V = self._find_volume(P, T)
         return self._thermal_expansion_coeff(V, T)
 
+    def isothermal_bulk_modulus(self, P: float, T: float) -> float:
+        """Isothermal bulk modulus K_T = -V (∂P/∂V)_T [Pa]."""
+        return self._isothermal_bulk_modulus(self._find_volume(P, T), T)
+
+    def adiabatic_bulk_modulus(self, P: float, T: float) -> float:
+        """Adiabatic bulk modulus K_S = K_T C_P / C_V [Pa], with C_P - C_V = α² T V K_T."""
+        V = self._find_volume(P, T)
+        K_T = self._isothermal_bulk_modulus(V, T)
+        alpha = self._thermal_expansion_coeff(V, T)
+        return K_T * (1 + alpha**2 * T * V * K_T / self._isochoric_heat_capacity(V, T))
+
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
         Calculate dimensionless adiabatic temperature gradient.
@@ -3138,6 +3171,16 @@ class Wolf18:
         """
         V = self._find_volume(P, T)
         return self._rtpress.eval_thermal_exp(V, T)
+
+    def isothermal_bulk_modulus(self, P: float, T: float) -> float:
+        """Isothermal bulk modulus K_T = -V (∂P/∂V)_T [Pa], evaluated by RTpress."""
+        V = self._find_volume(P, T)
+        return self._rtpress.eval_bulk_mod(V, T, const='T') * self._GPA_TO_PA
+
+    def adiabatic_bulk_modulus(self, P: float, T: float) -> float:
+        """Adiabatic bulk modulus K_S = -V (∂P/∂V)_S [Pa], evaluated by RTpress."""
+        V = self._find_volume(P, T)
+        return self._rtpress.eval_bulk_mod(V, T, const='S') * self._GPA_TO_PA
 
     def adiabatic_gradient(self, P: float, T: float) -> float:
         """
@@ -3625,6 +3668,16 @@ class MgSiO3EoS:
         """Calculate volumetric thermal expansion coefficient [K⁻¹]."""
         eos, _ = self._get_eos(P, T)
         return eos.thermal_expansion(P, T)
+
+    def isothermal_bulk_modulus(self, P, T):
+        """Calculate isothermal bulk modulus K_T [Pa]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.isothermal_bulk_modulus(P, T)
+
+    def adiabatic_bulk_modulus(self, P, T):
+        """Calculate adiabatic bulk modulus K_S [Pa]."""
+        eos, _ = self._get_eos(P, T)
+        return eos.adiabatic_bulk_modulus(P, T)
 
     def adiabatic_gradient(self, P, T):
         """Calculate dimensionless adiabatic temperature gradient."""
