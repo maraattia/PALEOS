@@ -1,10 +1,10 @@
 """
 Unrelaxed (infinite-frequency) shear modulus of the iron and MgSiO3 phases.
 
-This is the shear modulus of a Maxwell or Andrade body. In liquids the relaxed modulus is zero, and the unrelaxed one below is what a viscoelastic model needs. The MgSiO3 and liquid functions take the density of the PALEOS phase, so their modulus follows the PALEOS volume. Solid iron takes its cold term at the PALEOS pressure on the SLB 300 K isotherm and uses the density only in its thermal term. Every function returns Pa.
+This is the shear modulus of a Maxwell or Andrade body. In liquids the relaxed modulus is zero, and the unrelaxed one below is what a viscoelastic model needs. The MgSiO3 and liquid functions take the density of the PALEOS phase, so their modulus follows the PALEOS volume. Solid iron takes its reference modulus at the PALEOS pressure on the SLB 300 K isotherm and uses the density only in its thermal term. Every function returns Pa.
 
 - MgSiO3 solids: finite-strain cold term and Debye thermal term of Stixrude & Lithgow-Bertelloni (2005, Eqs. 33, 41, 46, and 47), with the Stixrude & Lithgow-Bertelloni (2024) parameters of each phase (their own V0, K0, and K0') at the PALEOS volume.
-- Solid iron: the Stixrude & Lithgow-Bertelloni (2024) cold curve at the given pressure, softened toward melting with the Nadal & Le Poac (2003) model. Its constants f = 0.112 and zeta = 0.1048 reproduce the ab initio hcp moduli of Martorell et al. (2013, Table S1) at 360 GPa, with their melting point of 7350 K at 360 GPa carried to other pressures in proportion to the PALEOS melting curve (Anzellini et al. 2013).
+- Solid iron: the Nadal & Le Poac (2003) model, softening toward the PALEOS melting curve (Anzellini et al. 2013), with its 0 K modulus set so that it returns the Stixrude & Lithgow-Bertelloni (2024) modulus on their 300 K isotherm. With f = 0.112 from Martorell et al. (2013), zeta = 0.0812 fits their ab initio hcp moduli at 360 GPa (Table S1) in homologous temperature T/T_m with an rms misfit of 17 GPa, so their strong softening above 0.96 T_m falls just below the PALEOS melting curve. At 360 GPa the model gives 547 and 292 GPa at 2000 and 5400 K, against 553 and 320 GPa.
 - Liquid iron: 0.712 times the hcp cold-curve modulus at the liquid density plus 6.02 MPa/K, a fit to the infinite-frequency moduli of Xian et al. (2019, Table S2) over 9.5 to 13.3 g/cm3 and 4300 to 10000 K (rms 7.4 GPa).
 - Liquid MgSiO3: the shear modulus of MgSiO3 glass at the same density, 31.94 GPa (rho / 3000 kg/m3)^1.904, a fit to the first-principles glass moduli of Ghosh et al. (2014, Table S2) over 3.0 to 7.0 g/cm3. The glass stands in for the unrelaxed melt (Dingwell & Webb 1989). Below 3.0 g/cm3 the modulus stays at its 3.0 g/cm3 value, which lies nearer the 41.1 GPa measured for the glass at ambient conditions (Sanchez-Valle & Bass 2010) than the extrapolated fit.
 
@@ -40,9 +40,8 @@ SLB = {
 FORMULA_MASS = {'fea': _M_FE, 'feg': _M_FE, 'fee': _M_FE, 'cen': 2 * _M_MGSIO3, 'en': 2 * _M_MGSIO3, 'mgc2': 2 * _M_MGSIO3, 'mgpv': _M_MGSIO3, 'mppv': _M_MGSIO3}
 
 NP_F = 0.112  # Lindemann constant of Martorell et al. (2013)
-NP_ZETA = 0.1048
-NP_T_MELT_360 = 7350.0  # K, melting point of the simulated hcp crystal at 360 GPa (Martorell et al. 2013)
-_T_HAT_MAX = 0.999  # keeps the Nadal & Le Poac J finite up to the model melting point
+NP_ZETA = 0.081188
+_T_HAT_MAX = 0.999  # keeps the Nadal & Le Poac J finite up to the melting curve
 
 LIQUID_FE = (0.712396, 6.02382e6)  # (c, b [Pa/K]) of c G_cold(rho) + b T
 LIQUID_MGSIO3 = (31.9392e9, 1.90372)  # (a [Pa], n) of a (rho / 3000 kg/m3)^n
@@ -112,8 +111,8 @@ def slb_shear_modulus(key, rho, T):
     return G if G > 0 else np.nan
 
 
-def _cold_at_pressure(key, P):
-    """Cold-curve shear modulus [Pa] on the 300 K isotherm of the SLB equation of state at pressure P [Pa]."""
+def _isotherm_300(key, P):
+    """Shear modulus [Pa] and density [kg/m3] on the 300 K isotherm of the SLB equation of state at pressure P [Pa]."""
     _, K0, Kp, *_ = SLB[key]
     lo, hi = 0.0, 2.0
     for _ in range(60):
@@ -122,30 +121,31 @@ def _cold_at_pressure(key, P):
             lo = f
         else:
             hi = f
-    return _cold(key, 0.5 * (lo + hi))
+    f = 0.5 * (lo + hi)
+    return _cold(key, f), (1.0 + 2.0 * f) ** 1.5 * FORMULA_MASS[key] / SLB[key][0]
 
 
-@lru_cache(maxsize=1)
-def _melting_ratio():
-    """Ratio of the Martorell et al. (2013) melting point to the PALEOS melting curve at 360 GPa."""
-    from .iron_eos import T_melt_Fe
-
-    return NP_T_MELT_360 / T_melt_Fe(360e9)
+def _np_J(t):
+    """Nadal & Le Poac J at homologous temperature t = T/T_m."""
+    return 1.0 + np.exp(-(1.0 + 1.0 / NP_ZETA) / (1.0 + NP_ZETA / (1.0 - t)))
 
 
 def solid_iron_shear_modulus(key, P, T, rho):
     """
     Shear modulus [Pa] of solid iron phase `key` ('fea', 'feg', or 'fee') at pressure P [Pa], temperature T [K], and density rho [kg/m3].
 
-    Nadal & Le Poac (2003), as written by Banerjee (2005, arXiv:cond-mat/0512466, Eqs. 10 and 11): G = [G_cold(P) (1 - T/T_m) + rho k_B T / (C m)] / J(T/T_m), with C = (6 pi^2)^(2/3) f^2 / 3, m the atomic mass, and T_m the PALEOS melting curve scaled to 7350 K at 360 GPa, the melting point of the simulated crystal.
+    Nadal & Le Poac (2003), as written by Banerjee (2005, arXiv:cond-mat/0512466, Eqs. 10 and 11): G = [G0(P) (1 - T/T_m) + rho k_B T / (C m)] / J(T/T_m), with C = (6 pi^2)^(2/3) f^2 / 3, m the atomic mass, and T_m the PALEOS melting curve. The 0 K modulus G0(P) is set so that G equals the SLB modulus on its 300 K isotherm at 300 K, with the SLB density there.
     """
     from .iron_eos import T_melt_Fe
 
-    t = min(T / (_melting_ratio() * T_melt_Fe(P)), _T_HAT_MAX)
+    T_m = T_melt_Fe(P)
     C = (6.0 * np.pi**2) ** (2.0 / 3.0) * NP_F**2 / 3.0
-    J = 1.0 + np.exp(-(1.0 + 1.0 / NP_ZETA) / (1.0 + NP_ZETA / (1.0 - t)))
     m = _M_FE / N_A
-    return (_cold_at_pressure(key, P) * (1.0 - t) + rho * K_B * T / (C * m)) / J
+    G_300, rho_300 = _isotherm_300(key, P)
+    t_300 = min(T_REF / T_m, _T_HAT_MAX)
+    G0 = (G_300 * _np_J(t_300) - rho_300 * K_B * T_REF / (C * m)) / (1.0 - t_300)
+    t = min(T / T_m, _T_HAT_MAX)
+    return (G0 * (1.0 - t) + rho * K_B * T / (C * m)) / _np_J(t)
 
 
 def liquid_iron_shear_modulus(rho, T):

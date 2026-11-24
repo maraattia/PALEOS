@@ -98,3 +98,10 @@ def test_water_bulk_moduli(water, P, T):
 
 def test_water_vapor_is_an_ideal_gas(water):
     assert water.isothermal_bulk_modulus(1e3, 500.0) == pytest.approx(1e3, rel=1e-2)
+
+
+@pytest.mark.parametrize("phase, key, P", [("solid-alpha", "fea", 1e5), ("solid-gamma", "feg", 10e9),
+                                           ("solid-epsilon", "fee", 100e9), ("solid-epsilon", "fee", 360e9)])
+def test_solid_iron_returns_its_slb_modulus_at_300_k(iron_phases, phase, key, P):
+    """The Nadal & Le Poac softening is anchored on the SLB 300 K isotherm of each iron phase."""
+    assert iron_phases[phase].shear_modulus(P, 300.0) == pytest.approx(shear._isotherm_300(key, P)[0], rel=5e-3)
