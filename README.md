@@ -55,6 +55,16 @@ All materials provide the same seven quantities as functions of pressure (Pa) an
 
 Additionally, `phase(P, T)` returns the stable phase label as a string.
 
+Every material also provides its elastic moduli:
+
+| Quantity                      | Symbol               | Method                           | Units         |
+|-------------------------------|----------------------|----------------------------------|---------------|
+| Isothermal bulk modulus       | $K_T$                | `isothermal_bulk_modulus(P, T)`  | Pa            |
+| Adiabatic bulk modulus        | $K_S$                | `adiabatic_bulk_modulus(P, T)`   | Pa            |
+| Unrelaxed shear modulus       | $\mu$                | `shear_modulus(P, T)`            | Pa            |
+
+The bulk moduli follow from the equation of state of each phase. The shear modulus is the unrelaxed (infinite-frequency) one that a Maxwell or Andrade body needs, and the relaxed shear modulus of a liquid is zero. The shear models and their sources are listed in `paleos/shear.py`. The shear modulus is NaN for water and ice, which have no shear model yet, for post-perovskite above about 3.9 TPa, and for solids that are mechanically unstable.
+
 ## Installation
 
 ```bash
