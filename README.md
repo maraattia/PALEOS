@@ -37,7 +37,7 @@ Six phases covering the planetary mantle: three pyroxene polymorphs—LP-clinoen
 
 ### Water (H₂O)
 
-Based on the AQUA equation of state (Haldemann et al. 2020), covering ice polymorphs (Ih through X), liquid, vapor, and supercritical/superionic water. Includes two corrections to the entropy and internal energy for bugs in the Mazevet et al. (2019) Helmholtz free-energy parametrization used in the supercritical/superionic regime—a sign error on the first two terms of $F_T$, and the revision of the reference entropy from $S_0 = 4.9\,k_B\,n_\mathrm{at}$ to $9.8\,k_B\,n_\mathrm{at}$—gated analytically to the Region 7 blend bands AQUA uses to stitch Mazevet et al. (2019) with its neighbors.
+Based on the AQUA equation of state (Haldemann et al. 2020), covering ice polymorphs (Ih through X), liquid, vapor, and supercritical/superionic water. AQUA was built with the published Mazevet et al. (2019) free-energy fit, which it uses for supercritical and superionic water and for ice X above 631 GPa, blended with French & Redmer (2015) from 316 GPa. The authors later corrected the fit: a sign error on the first two terms of $F_T$, and the reference entropy raised from $S_0 = 4.9\,k_B\,n_\mathrm{at}$ to $9.8\,k_B\,n_\mathrm{at}$. The correction changes the free energy alone, so PALEOS shifts only the AQUA entropy, by $-\Delta F/T$, weighted by the blend AQUA uses to stitch the fit to its neighbors.
 
 ## Thermodynamic quantities
 
