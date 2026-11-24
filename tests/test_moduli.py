@@ -1,11 +1,13 @@
 """
-Elastic moduli of every iron and MgSiO3 EoS.
+Elastic moduli of every EoS.
 
-K_T must equal rho (dP/drho)_T of the EoS density, K_S / K_T must equal C_P / C_V, and the unrelaxed shear modulus must be positive (Born stability). The points cover every class behind the IronEoS and MgSiO3EoS wrappers, the Miozzi20 to Hakim18 blend zone, and metastable states on both sides of the melting curves, which two-phase tables need.
+K_T must equal rho (dP/drho)_T of the EoS density, K_S / K_T must equal C_P / C_V, and the unrelaxed shear modulus must be positive (Born stability) and fall with temperature in the solids. The points cover every class behind the IronEoS and MgSiO3EoS wrappers, the Miozzi20 to Hakim18 blend zone, and metastable states on both sides of the melting curves, which two-phase tables need. The wrappers must return the moduli of the stable phase, and water, which has no shear model, must return NaN.
 """
 
 import numpy as np
 import pytest
+
+from paleos import shear
 
 # (material, phase whose EoS is evaluated, P [Pa], T [K]). The phase need not be stable there.
 POINTS = [
@@ -49,6 +51,33 @@ def test_bulk_modulus_ratio_is_heat_capacity_ratio(phases, material, phase, P, T
 @pytest.mark.parametrize("material, phase, P, T", cases())
 def test_shear_modulus_is_positive(phases, material, phase, P, T):
     assert phases[material][phase].shear_modulus(P, T) > 0
+
+
+@pytest.mark.parametrize("material, phase, P, T", [c for c in cases() if c.values[1] != "liquid"])
+def test_solid_shear_modulus_falls_with_temperature(phases, material, phase, P, T):
+    eos = phases[material][phase]
+    assert eos.shear_modulus(P, 1.1 * T) < eos.shear_modulus(P, T)
+
+
+@pytest.mark.parametrize("key", sorted(shear.SLB))
+def test_slb_shear_modulus_is_g0_at_the_reference_state(key):
+    """At V0 and 300 K the finite strain and the thermal term vanish, so G = G0."""
+    rho0 = shear.FORMULA_MASS[key] / shear.SLB[key][0]
+    assert shear.slb_shear_modulus(key, rho0, shear.T_REF) == pytest.approx(shear.SLB[key][6], rel=1e-12)
+
+
+MODULI = ("isothermal_bulk_modulus", "adiabatic_bulk_modulus", "shear_modulus")
+WRAPPER_POINTS = [("iron", 1e5, 300.0), ("iron", 1e9, 1750.0), ("iron", 5e9, 1500.0), ("iron", 300e9, 4000.0),
+                  ("iron", 300e9, 7000.0), ("mgsio3", 1e5, 300.0), ("mgsio3", 5e9, 1500.0), ("mgsio3", 10e9, 1200.0),
+                  ("mgsio3", 50e9, 2000.0), ("mgsio3", 200e9, 3000.0), ("mgsio3", 25e9, 4000.0)]
+
+
+@pytest.mark.parametrize("material, P, T", WRAPPER_POINTS)
+def test_wrappers_return_the_moduli_of_the_stable_phase(iron_wrapper, mgsio3_wrapper, material, P, T):
+    wrapper = {"iron": iron_wrapper, "mgsio3": mgsio3_wrapper}[material]
+    eos = wrapper._phase_eos_map[wrapper.phase(P, T)]
+    for method in MODULI:
+        assert getattr(wrapper, method)(P, T) == getattr(eos, method)(P, T)
 
 
 WATER_POINTS = [(1e5, 300.0), (1e5, 200.0), (1e8, 266.7), (5e9, 300.0), (30e9, 1000.0), (0.56e9, 2993.0),
